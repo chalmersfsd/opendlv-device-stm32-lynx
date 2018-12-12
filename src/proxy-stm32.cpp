@@ -42,15 +42,13 @@ STM::~STM()
 
 void STM::setUp() 
 {
-	//string of pins, later used for getAnalogReadings()
-	std::vector<std::string> pinsVecString = {"0", "1", "2", "3", "5", "6"};
-  for(std::string const& str : pinsVecString) {
-    m_pins.push_back(std::stoi(str));
-  }
-}
-
-void STM::sendBackReadings(cluon::OD4Session &od4)
-{
+	BBB[0] = "steer_pos";
+	BBB[1] = "ebs_line";
+	BBB[2] = "service_tank";
+	BBB[3] = "ebs_actuator";
+	BBB[5] = "pressure_reg";
+	BBB[6] = "position_rack";
+	BBB[27] = "heart_beat";
 }
 
 void STM::decode(cluon::OD4Session &od4, std::string msg)
@@ -128,7 +126,48 @@ void STM::collectRequests(std::string type, unsigned int pin, int value)
      //std::cout << "Size of m_PwmRequests: " << m_PwmRequests.size() << std::endl;
    }
 }
-// Convert SwitchStateRequestGpio into bytes to STM32F4
+/* --- Send requests to STM32F4 --- */
+void STM::send(serial::Port* port)
+{
+  //Encode & send GPIO requests
+  if(m_GpioRequests.size() > 0){
+    for(Request rq : m_GpioRequests)
+    {
+       std::string payload = encodePayload(rq);
+       std::string netstringMsg = encodeNetstring(payload);
+       //send netstring request over serial port
+       port->write(netstringMsg);
+       //for debuging
+       //std::cout << netstringMsg << std::endl;
+    }
+    // clear all GPIO requests
+    m_GpioRequests.clear();
+  }
+  
+}
+
+std::string STM::encodeNetstring(const std::string payload)
+{
+  return std::to_string(payload.length()) + ":" + payload + MSG_END;
+}
+
+std::string STM::encodePayload(Request rq)
+{
+  unsigned int pin = rq.m_pin;
+  int value = rq.m_value;
+  std::map<int,std::string>::iterator it;
+  
+  it = BBB.find(pin);
+  if (it == BBB.end()){
+    std::cout << "ERROR: cannot find requested pin: " << pin << std::endl;
+    return "error";
+  } 
+  else
+  {
+    std::string payload = std::string(SET) + DELIMITER + it->second + DELIMITER + std::to_string(value);
+    return payload;
+  }
+}
 void STM::sendNetstring(serial::Port* port, int16_t pin, bool value){
 	//Netstrings have the following format:
   // ASCII Number representing the length of the payload + ':' + payload + ','
@@ -148,8 +187,6 @@ void STM::sendNetstring(serial::Port* port, int16_t pin, bool value){
 
 uint32_t STM::getSenderStampOffsetGpio(){
 	return m_senderStampOffsetGpio;
-}
-std::vector<std::pair<uint16_t, float>> STM::getAnalogReadings() {
 }
 
 uint32_t STM::getSenderStampOffsetPwm(){

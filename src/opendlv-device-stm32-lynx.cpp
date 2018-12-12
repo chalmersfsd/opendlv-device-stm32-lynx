@@ -50,7 +50,8 @@ int main(int argc, char **argv) {
     const float FREQ{std::stof(commandlineArguments["freq"])};
     const string deviceName{commandlineArguments["device"]};
     std::cout << "Micro-Service ID:" << ID << std::endl;
-
+    std::cout << "FREQ: " << FREQ << std::endl;
+    std::cout << "VERBOSE: " << VERBOSE << std::endl;
     //Interface to a running OpenDaVINCI session.
     cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
     cluon::OD4Session od4Gpio{static_cast<uint16_t>(std::stoi(commandlineArguments["cidGpio"]))};
@@ -65,34 +66,35 @@ int main(int argc, char **argv) {
       std::cout << "Device name:" << deviceName << std::endl;
     }
 
-    //Collect gpio request
+    /* --- Collect gpio request --- */
     auto onSwitchStateRequest{[&od4Gpio, &stm32, &myPort](cluon::data::Envelope &&envelope)
     {
       auto  gpioState = cluon::extractMessage<opendlv::proxy::SwitchStateRequest>(std::move(envelope));
       int16_t pin = envelope.senderStamp()-stm32.getSenderStampOffsetGpio();
       bool value = gpioState.state();
 			stm32.collectRequests("gpio", pin, value);
-      //stm32.sendNetstring(&myPort, pin, value);
     }};
     od4Gpio.dataTrigger(opendlv::proxy::SwitchStateRequest::ID(), onSwitchStateRequest);
 
-    //Collect pwm request
+    /* --- Collect pwm request --- */
 	
-    //Sending request to STM32
+    /* --- Sending request to STM32 --- */
     auto atFrequency{[&od4, &stm32]() -> bool
     {
-      //some thing here ...
+      
     }};
-
+    od4.timeTrigger(FREQ, atFrequency);
+    
+    /* --- DECODE BYTES FROM STM32F4 --- */
     auto readingCallback = [&od4, &stm32](const string data){
-    //DECODE BYTES FROM STM32F4
       stm32.decode(od4, data);
     };
     myPort.read(readingCallback);
 	
     while(1) {
     //Sleep as this service is data driven
-        usleep(5*1000);
+        usleep(50);
+        stm32.send(&myPort);
     }
 
   }

@@ -18,12 +18,20 @@
 #ifndef STM32
 #define STM32
 
+/* --- String constant used in encoding --- */
+#define DELIMITER  "|"
+#define MSG_END  ";"
+#define SET  "set"
+#define STATUS  "status"
+#define STATUS_DELIMITER ":"
+
 #include "opendlv-standard-message-set.hpp"
 #include "serialport.hpp"
 #include <memory>
 #include <string>
 #include <vector>
 #include <utility>
+#include <map>
 #include "request.hpp"
 class STM {
 	public:
@@ -33,7 +41,6 @@ class STM {
 	 public:
 	  void body(cluon::OD4Session &od4);
 	  void decode(cluon::OD4Session &od4, std::string msg);
-	  void sendBackReadings(cluon::OD4Session &od4);
 	  void collectRequests(std::string type, unsigned int pin, int value);
 	 // ANALOG FUNCTIONS AND VARIABLES
 	 private:
@@ -44,7 +51,6 @@ class STM {
 	  void setUp();
 	  void tearDown();
 
-	  std::vector<std::pair<uint16_t, float>> getAnalogReadings();
 	  float m_conversionConst;
 	  std::vector<uint16_t> m_pins;
 	  const uint16_t m_analogPinSteerPosition = 0;
@@ -67,6 +73,9 @@ class STM {
 	  const double m_analogOffsetEbsActuator = 0.11;
 	  const double m_analogOffsetPressureReg = 0;
 	  const double m_analogOffsetSteerPositionRack = 28.06;
+	  
+	  //Pins of BeagleboneBlack and their functionalities
+	  std::map<int, std::string> BBB;
 	 // GPIO/SwitchStateRequest handler
 	 public:
 	  void sendNetstring(serial::Port* port, int16_t pin, bool value);
@@ -76,6 +85,11 @@ class STM {
    // PWM request handler
     uint32_t getSenderStampOffsetPwm();
 		std::vector<Request> m_PwmRequests;
+		
+	 // Generic send function
+	 void send(serial::Port* port);
+	 std::string encodePayload(Request rq);
+	 std::string encodeNetstring(const std::string payload);
    
 };
 
