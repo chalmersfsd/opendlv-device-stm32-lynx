@@ -1,0 +1,55 @@
+# Copyright (C) 2018  Christian Berger
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+FROM ubuntu:16.04 as builder
+MAINTAINER Christian Berger "christian.berger@gu.se"
+
+RUN apt-get update
+RUN apt-get install -y software-properties-common
+RUN add-apt-repository ppa:george-edison55/cmake-3.x
+RUN apt-get update
+RUN apt-get -y install cmake 
+RUN apt-get -y install libomp-dev #libomp
+RUN apt-get -y install libtbb-dev #libtbb
+RUN apt-get -y install g++-5 #g++
+RUN apt-get -y install build-essential #make 
+RUN apt-get -y install upx-ucl 	#upx 
+RUN apt-get -y install git-core #git 
+
+RUN apt-get update
+RUN apt-get -y upgrade		
+WORKDIR /tmp
+
+
+#Install the microservice   
+ADD . /opt/sources/
+WORKDIR /opt/sources
+RUN mkdir -p build && \
+	cd build && \
+	cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/tmp/opendlv-device-stm32-lynx-dest .. && \ 
+	make && make test && make install && upx -9 /tmp/opendlv-device-stm32-lynx-dest/bin/opendlv-device-stm32-lynx
+
+#Deploy the microservice
+FROM ubuntu:16.04
+MAINTAINER Christian Berger "christian.berger@gu.se"
+
+#Start microservice
+WORKDIR /usr/bin
+
+COPY --from=builder /usr/local/include/ /usr/include/
+COPY --from=builder /usr/local/lib /usr/lib/
+copy --from=builder /usr/lib/ /usr/lib/
+COPY --from=builder /tmp/opendlv-device-stm32-lynx-dest/bin/opendlv-device-stm32-lynx .
+CMD ["/usr/bin/opendlv-device-stm32-lynx"]
