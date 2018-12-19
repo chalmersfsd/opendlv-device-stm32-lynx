@@ -112,7 +112,7 @@ std::string STM::encodePayload(Request rq)
   unsigned int pin = rq.m_pin;
   int value = rq.m_value;
   std::map<int,std::string>::iterator it;
-  
+
   it = BBB_GPIO.find(pin);
   if (it == BBB_GPIO.end()){
     //std::cout << "ERROR in encodePayload(): cannot find requested pin: " << pin << std::endl;

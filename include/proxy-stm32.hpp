@@ -129,7 +129,6 @@ class STM {
 	 
 	 //Decoded payload container
 	 std::vector<std::string> m_Payloads;
-   
 };
 
 #endif
