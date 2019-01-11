@@ -55,6 +55,7 @@ int main(int argc, char **argv) {
     //Interface to a running OpenDaVINCI session.
     cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
     cluon::OD4Session od4Gpio{static_cast<uint16_t>(std::stoi(commandlineArguments["cidGpio"]))};
+    cluon::OD4Session od4Pwm{static_cast<uint16_t>(std::stoi(commandlineArguments["cidpwm"]))};
     
     //Interface with STM32F4 Discovery board
     STM stm32(VERBOSE, ID);  
@@ -77,7 +78,16 @@ int main(int argc, char **argv) {
     od4Gpio.dataTrigger(opendlv::proxy::SwitchStateRequest::ID(), onSwitchStateRequest);
 
     /* --- Collect pwm request --- */
-	
+	  auto onPulseWidthModulationRequest{[&od4Gpio, &stm32, &myPort](cluon::data::Envelope &&envelope)
+    {
+      auto pwmState = cluon::extractMessage<opendlv::proxy::PulseWidthModulationRequest>(std::move(envelope));
+      int16_t pin = envelope.senderStamp()-stm32.getSenderStampOffsetPwm();
+      uint32_t value = pwmState.dutyCycleNs();
+			stm32.collectRequests("pwm", pin, value);
+			//std::cout << "Received PWM request: " << pin << ", value: " << value << std::endl;
+    }};
+    od4Pwm.dataTrigger(opendlv::proxy::PulseWidthModulationRequest::ID(), onPulseWidthModulationRequest);
+    
     /* --- Sending request to STM32 --- */
     auto atFrequency{[&od4, &stm32]() -> bool
     {
@@ -88,7 +98,7 @@ int main(int argc, char **argv) {
     /* --- COLLECT BYTES FROM STM32F4 --- */
     auto readingCallback = [&od4, &stm32](const string data){
       stm32.read(data);
-      //std::cout << data << " EOF" << std::endl;
+      std::cout << data << " EOF" << std::endl;
     };
     myPort.read(readingCallback);
 	
@@ -98,7 +108,7 @@ int main(int argc, char **argv) {
 			stm32.extractPayload();
 			stm32.decodePayload(&od4);
 			//usleep(5);
-			//stm32.send(&myPort);
+			stm32.send(&myPort);
     }
 
   }

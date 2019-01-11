@@ -52,6 +52,12 @@
 #define REDUNDENCY "redundency"
 #define SPARE "spare"
 
+#define STEER_SPEED "steer_speed"
+#define BRAKE_PRESSURE "brake_pressure"
+#define ASSI_BLUE "assi_blue"
+#define ASSI_RED "assi_red"
+#define ASSI_GREEN "assi_green"
+
 #include "opendlv-standard-message-set.hpp"
 #include "serialport.hpp"
 #include <stdlib.h>
@@ -76,6 +82,7 @@ class STM {
 		uint32_t count = 0;
 	  uint32_t m_senderStampOffsetAnalog;
 	  uint32_t m_senderStampOffsetGpio;
+	  uint32_t m_senderStampOffsetPwm;
 	  bool m_debug;
 	  void setUp();
 	  void tearDown();
@@ -105,7 +112,9 @@ class STM {
 	  
 	  //Pins of BeagleboneBlack and their functionalities
 	  std::map<int, std::string> BBB_GPIO;
+	  std::map<int, std::string> BBB_PWM;
 	  std::map<std::string, int> BBB_Analog;
+	  
 	 // GPIO/SwitchStateRequest handler
 	 public:
 		uint32_t getSenderStampOffsetGpio();
@@ -117,7 +126,7 @@ class STM {
 		
 	 // Generic send function
 	 void send(serial::Port* port);
-	 std::string encodePayload(Request rq);
+	 std::string encodePayload(std::string type, Request rq);
 	 std::string encodeNetstring(const std::string payload);
 	 
 	 // Generic read function
@@ -129,6 +138,17 @@ class STM {
 	 
 	 //Decoded payload container
 	 std::vector<std::string> m_Payloads;
+
 };
+
+#define ASMS  "asms"
+#define CLAMPED_SENSOR  "clamped_sensor"
+#define EBS_ACTUATOR  "ebs_actuator"
+#define EBS_LINE  "ebs_line"
+#define EBS_OK  "ebs_ok"
+#define POSITION_RACK  "position_rack"
+#define PRESSURE_RAG  "pressure_rag"
+#define SERVICE_TANK  "service_tank"
+#define STEER_POS  "steer_pos"
 
 #endif

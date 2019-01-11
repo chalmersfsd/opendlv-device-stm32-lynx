@@ -30,6 +30,7 @@ STM::STM(bool verbose, uint32_t id)
     : m_conversionConst(1)
     , m_senderStampOffsetAnalog(id*1000+200)
     , m_senderStampOffsetGpio(id*1000)
+    , m_senderStampOffsetPwm(id*1000+300)
     , m_pins()
     , m_debug(verbose)
 {
@@ -58,6 +59,12 @@ void STM::setUp()
 	BBB_GPIO[49] = EBS_OK;
 	BBB_GPIO[112] = CLAMPED_SENSOR;
 	BBB_GPIO[115] = ASMS;
+	
+	BBB_PWM[40] = STEER_SPEED;
+	BBB_PWM[41] = BRAKE_PRESSURE;
+	BBB_PWM[0] = ASSI_BLUE;
+	BBB_PWM[20] = ASSI_RED;
+	BBB_PWM[21] = ASSI_GREEN;
 	
 	BBB_Analog[STEER_POS] = 0;
 	BBB_Analog[EBS_LINE] = 1;
@@ -89,17 +96,29 @@ void STM::send(serial::Port* port)
   if(m_GpioRequests.size() > 0){
     for(Request rq : m_GpioRequests)
     {
-       std::string payload = encodePayload(rq);
+       std::string payload = encodePayload("gpio",rq);
        std::string netstringMsg = encodeNetstring(payload);
        //send netstring request over serial port
+       std::cout << netstringMsg << std::endl;
        port->write(netstringMsg);
-       //for debuging
-       //std::cout << netstringMsg << std::endl;
     }
     // clear all GPIO requests
     m_GpioRequests.clear();
   }
   
+  //Encode & send PWM requests
+  if(m_PwmRequests.size() > 0){
+    for(Request rq : m_PwmRequests)
+    {
+       std::string payload = encodePayload("pwm",rq);
+       std::string netstringMsg = encodeNetstring(payload);
+       //send netstring request over serial port
+       std::cout << netstringMsg << std::endl;
+       port->write(netstringMsg);
+    }
+    // clear all GPIO requests
+    m_PwmRequests.clear();
+  } 
 }
 
 std::string STM::encodeNetstring(const std::string payload)
@@ -107,21 +126,38 @@ std::string STM::encodeNetstring(const std::string payload)
   return std::to_string(payload.length()) + ":" + payload + MSG_END;
 }
 
-std::string STM::encodePayload(Request rq)
+std::string STM::encodePayload(std::string type, Request rq)
 {
   unsigned int pin = rq.m_pin;
   int value = rq.m_value;
   std::map<int,std::string>::iterator it;
-
-  it = BBB_GPIO.find(pin);
-  if (it == BBB_GPIO.end()){
-    //std::cout << "ERROR in encodePayload(): cannot find requested pin: " << pin << std::endl;
-    return "error";
-  } 
-  else
-  {
-    std::string payload = std::string(SET) + DELIMITER + it->second + DELIMITER + std::to_string(value);
-    return payload;
+  
+  if(type == "gpio"){
+    it = BBB_GPIO.find(pin);
+    if (it == BBB_GPIO.end()){
+      //std::cout << "ERROR in encodePayload(): cannot find requested pin: " << pin << std::endl;
+      return "error";
+    } 
+    else
+    {
+      std::string payload = std::string(SET) + DELIMITER + it->second + DELIMITER + std::to_string(value);
+      return payload;
+    }
+  } else if(type == "pwm") {
+    if(value > 50000)
+      value = 50000;
+    //Convert old pwm values (0-50000) to duty cycle (0-100.00 percent)
+    int dutyCycle = (int)(((float)value/50000.0)*10000);
+    it = BBB_PWM.find(pin);
+    if (it == BBB_PWM.end()){
+      //std::cout << "ERROR in encodePayload(): cannot find requested pin: " << pin << std::endl;
+      return "error";
+    } 
+    else
+    {
+      std::string payload = std::string(SET) + DELIMITER + it->second + DELIMITER + std::to_string(dutyCycle);
+      return payload;
+    }
   }
 }
 
@@ -360,6 +396,7 @@ uint32_t STM::getSenderStampOffsetGpio(){
 }
 
 uint32_t STM::getSenderStampOffsetPwm(){
+  return m_senderStampOffsetPwm;
 }
 
 void STM::tearDown() 
