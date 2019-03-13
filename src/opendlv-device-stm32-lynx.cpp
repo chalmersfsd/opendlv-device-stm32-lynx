@@ -48,6 +48,17 @@ int main(int argc, char **argv) {
     const uint32_t ID{(commandlineArguments["id"].size() != 0) ? static_cast<uint32_t>(std::stoi(commandlineArguments["id"])) : 0};
     const bool VERBOSE{commandlineArguments.count("verbose") != 0};
     const float FREQ{std::stof(commandlineArguments["freq"])};
+    //Options for displaying analog and digital inputs
+    const bool rackPos{commandlineArguments.count("rackPos") != 0};
+    const bool steerPos{commandlineArguments.count("steerPos") != 0};
+    const bool ebsLine{commandlineArguments.count("ebsLine") != 0};
+    const bool ebsAct{commandlineArguments.count("ebsAct") != 0};
+    const bool servTank{commandlineArguments.count("servTank") != 0};
+    const bool pressReg{commandlineArguments.count("pressReg") != 0};
+    const bool asms{commandlineArguments.count("asms") != 0};
+    const bool clamped{commandlineArguments.count("clamped") != 0};
+    const bool ebsOK{commandlineArguments.count("ebsOK") != 0};
+    
     const string deviceName{commandlineArguments["device"]};
     std::cout << "Micro-Service ID:" << ID << std::endl;
     std::cout << "FREQ: " << FREQ << std::endl;
@@ -98,7 +109,7 @@ int main(int argc, char **argv) {
     /* --- COLLECT BYTES FROM STM32F4 --- */
     auto readingCallback = [&od4, &stm32](const string data){
       stm32.read(data);
-      std::cout << data << " EOF" << std::endl;
+      //std::cout << data << " EOF" << std::endl;
     };
     myPort.read(readingCallback);
 	
@@ -106,8 +117,9 @@ int main(int argc, char **argv) {
     	//Decode payloads from STM32 end convert and send them as Openddlv messages
 			usleep(5);
 			stm32.extractPayload();
-			stm32.decodePayload(&od4);
-			//usleep(5);
+			stm32.decodePayload(&od4, &od4Gpio, rackPos, steerPos, ebsLine, ebsAct, servTank, pressReg, asms, clamped, ebsOK);
+			//myPort.write("17:set|assi_red|0000;");
+			usleep(5);
 			stm32.send(&myPort);
     }
 

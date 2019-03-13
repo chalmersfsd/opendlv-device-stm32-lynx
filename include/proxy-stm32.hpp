@@ -96,6 +96,10 @@ class STM {
 	  const uint16_t m_analogPinEbsLine = 1;
 	  const uint16_t m_analogPinEbsActuator = 3;
 	  
+	  const uint16_t m_gpioPinAsms = 115;
+    const uint16_t m_gpioPinEbsOk = 49;
+    const uint16_t m_gpioPinClampSensor = 112;
+	  
 	  const double m_analogConvSteerPosition = 80.38;
 	  const double m_analogConvEbsLine = 378.5;
 	  const double m_analogConvServiceTank = 377.6;
@@ -132,12 +136,26 @@ class STM {
 	 // Generic read function
 	 void read(const std::string data);
    void extractPayload();
-   void decodePayload(cluon::OD4Session* od4);
+   void decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool rackPos, bool steerPos, bool ebsLine, bool ebsAct, bool servTank, bool pressReg, bool asms, bool clamped, bool ebsOK);
    void sendBackAnalog(cluon::OD4Session * od4, uint16_t pin, uint32_t rawVal);
 	 std::string receiveBuffer;
+	 void sendBackDigital(cluon::OD4Session * od4Gpio, uint16_t pin, uint32_t val);
 	 
 	 //Decoded payload container
 	 std::vector<std::string> m_Payloads;
+	 
+	 //view raw analog signals for debugging
+	 uint32_t rawSteerPosition;
+	 uint32_t rawSteerPositionRack;
+	 uint32_t rawServiceTank;
+	 uint32_t rawPressureReg;
+	 uint32_t rawEbsLine;
+	 uint32_t rawEbsActuator;
+	 //view digital inputs for debugging
+	 bool rawAsms;
+	 bool rawClamped;
+	 bool rawEbsOK;
+	 void viewAnalogRaw(bool rackPos, bool steerPos, bool ebsLine, bool ebsAct, bool servTank, bool pressReg);
 
 };
 

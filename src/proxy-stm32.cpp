@@ -164,9 +164,10 @@ std::string STM::encodePayload(std::string type, Request rq)
 void STM::read(const std::string data)
 {  
 	//store read bytes in buffer
-	int bufferSize = 256;
+	int bufferSize = 512;
 	if(receiveBuffer.length() <= bufferSize)
 	{
+	//std::cout << data << std::endl;
 	std::stringstream ss;
 	ss << receiveBuffer << data;
 	receiveBuffer = ss.str();
@@ -176,8 +177,8 @@ void STM::read(const std::string data)
 /* Decode payloads sent from STM32 and send back to other microservices */
 void STM::sendBackAnalog(cluon::OD4Session * od4, uint16_t pin, uint32_t rawVal)
 {
-		//Currently using old BBB cape, which has 12bit ADC 0-1.8V, while STM32 has 12bit ADC 0-3.3V, thus need to scale down the raw value
-		rawVal = 1.8/3.3*rawVal;
+		//Currently using old BBB cape, which has 12bit ADC 0-1.8V, while STM32 has 12bit ADC 0-3.3V, thus need to re-scale the raw value
+		rawVal = 3.3/1.8*rawVal;
 		std::chrono::system_clock::time_point tp = std::chrono::system_clock::now();
 		cluon::data::TimeStamp sampleTime = cluon::time::convert(tp);
 		int16_t senderStamp = (int16_t) pin + m_senderStampOffsetAnalog;
@@ -212,13 +213,24 @@ void STM::sendBackAnalog(cluon::OD4Session * od4, uint16_t pin, uint32_t rawVal)
     	od4->send(msg, sampleTime, senderStamp);
 		}	
 }
-void STM::decodePayload(cluon::OD4Session * od4)
+
+void STM::sendBackDigital(cluon::OD4Session * od4Gpio, uint16_t pin, uint32_t val){
+  cluon::data::TimeStamp sampleTime = cluon::time::now();
+  opendlv::proxy::SwitchStateReading msg;
+  msg.state((bool)val);
+  int16_t senderStamp = pin + m_senderStampOffsetGpio;
+  od4Gpio->send(msg, sampleTime, senderStamp);
+}
+
+void STM::decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool rackPos, bool steerPos, bool ebsLine, bool ebsAct, bool servTank, bool pressReg, bool asms, bool clamped, bool ebsOK)
 {
 	//std::cout << "m_Payloads.size() == " << m_Payloads.size() << std::endl;
   if(m_Payloads.size() > 0) // Send Analog readings
   {
     for(std::string payload : m_Payloads)
-    {    
+    { 
+      //std::cout << "payload == " << payload << std::endl;
+      bool newLine = false;   
       char* endptr;
       size_t pos = std::string::npos;
       unsigned int delimiterPos1;
@@ -228,6 +240,7 @@ void STM::decodePayload(cluon::OD4Session * od4)
       std::string pinFunc;
       std::map<std::string,int>::iterator it;
       
+      // Analog inputs
       pinFunc = EBS_LINE;
       pos = payload.find(pinFunc);
       if(pos != std::string::npos) {   	
@@ -239,8 +252,11 @@ void STM::decodePayload(cluon::OD4Session * od4)
 					pin = it->second;
 					unsigned int delimiterPos1 = pos + pinFunc.length();
       		unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
-      		//std::cout << "Received analog: " << pinFunc << " : " << rawVal << std::endl;
+      		if(ebsLine){ 
+      		  //std::cout << "ebsLine: " << rawVal << " "; newLine = true;
+      		}
       		sendBackAnalog(od4, pin, rawVal);
+      		rawEbsLine = rawVal;
 				}	
 			}
 			
@@ -255,8 +271,11 @@ void STM::decodePayload(cluon::OD4Session * od4)
 					pin = it->second;
 					unsigned int delimiterPos1 = pos + pinFunc.length();
       		unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
-      		//std::cout << "Received analog: " << pinFunc << " : " << rawVal << std::endl;
+      		if(servTank){ 
+      		 // std::cout << "servTank: " << rawVal << " "; newLine = true;
+      		}
       		sendBackAnalog(od4, pin, rawVal);
+      		rawServiceTank = rawVal;
 				}	
 			}
 			else {
@@ -274,8 +293,11 @@ void STM::decodePayload(cluon::OD4Session * od4)
 					pin = it->second;
 					unsigned int delimiterPos1 = pos + pinFunc.length();
       		unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
-      		//std::cout << "Received analog: " << pinFunc << " : " << rawVal << std::endl;
+      		if(ebsAct){ 
+      		  //std::cout << "ebsAct: " << rawVal << " "; newLine = true;
+      		}
       		sendBackAnalog(od4, pin, rawVal);
+      		rawEbsActuator = rawVal;
 				}	
 			}
 			else {
@@ -293,8 +315,11 @@ void STM::decodePayload(cluon::OD4Session * od4)
 					pin = it->second;
 					unsigned int delimiterPos1 = pos + pinFunc.length();
       		unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
-      		//std::cout << "Received analog: " << pinFunc << " : " << rawVal << std::endl;
+      		if(pressReg){ 
+      		  //std::cout << "pressReg: " << rawVal << " "; newLine = true;
+      		}
       		sendBackAnalog(od4, pin, rawVal);
+      		rawPressureReg = rawVal;
 				}	
 			}
 			else {
@@ -312,8 +337,11 @@ void STM::decodePayload(cluon::OD4Session * od4)
 					pin = it->second;
 					unsigned int delimiterPos1 = pos + pinFunc.length();
       		unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
-      		//std::cout << "Received analog: " << pinFunc << " : " << rawVal << std::endl;
+      		if(rackPos){ 
+      		  //std::cout << "rackPos: " << rawVal << " "; newLine = true;
+      		}
       		sendBackAnalog(od4, pin, rawVal);
+      		rawSteerPositionRack = rawVal;
 				}	
 			}
 			else {
@@ -331,25 +359,76 @@ void STM::decodePayload(cluon::OD4Session * od4)
 					pin = it->second;
 					unsigned int delimiterPos1 = pos + pinFunc.length();
       		unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
-      		//std::cout << "Received analog: " << pinFunc << " : " << rawVal << std::endl;
+      		if(steerPos){ 
+      		  //std::cout << "steerPos: " << rawVal << " "; newLine = true;
+      		}
       		sendBackAnalog(od4, pin, rawVal);
+      		rawSteerPosition = rawVal;
 				}	
 			}
-			else {
-				//std::cout << "ERROR: cannot find: " << pinFunc << " in payload" << std::endl;
+			
+			// Digital inputs
+			pinFunc = ASMS;
+      pos = payload.find(pinFunc);
+      if(pos != std::string::npos) {   	
+			  pin = m_gpioPinAsms;
+				unsigned int delimiterPos1 = pos + pinFunc.length();
+      	unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
+      	if(asms){ 
+      		//std::cout << "asms: " << rawVal << " "; newLine = true;
+      	}
+      	sendBackDigital(od4Gpio, pin, rawVal);
+      	rawAsms = rawVal;
 			}
+			
+			pinFunc = CLAMPED_SENSOR;
+      pos = payload.find(pinFunc);
+      if(pos != std::string::npos) {   	
+			  pin = m_gpioPinClampSensor;
+				unsigned int delimiterPos1 = pos + pinFunc.length();
+      	unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
+      	if(clamped){ 
+      		//std::cout << "clamped: " << rawVal << " "; newLine = true;
+      	}
+      	sendBackDigital(od4Gpio, pin, rawVal);
+      	rawClamped = rawVal;
+			}
+			
+			pinFunc = EBS_OK;
+      pos = payload.find(pinFunc);
+      if(pos != std::string::npos) {   	
+			  pin = m_gpioPinEbsOk;
+				unsigned int delimiterPos1 = pos + pinFunc.length();
+      	unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
+      	if(ebsOK){ 
+      		//std::cout << "ebsOK: " << rawVal << " "; newLine = true;
+      	}
+      	sendBackDigital(od4Gpio, pin, rawVal);
+      	rawEbsOK = rawVal;
+			}
+			
+			if(rackPos) {std::cout << "rackPos" << ": " << rawSteerPositionRack << " "; newLine=true;}
+  if(steerPos) {std::cout << "steerPos" << ": " << rawSteerPosition << " "; newLine=true;}
+  if(ebsLine) {std::cout << "ebsLine" << ": " << rawEbsLine << " "; newLine=true;}
+  if(ebsAct) {std::cout << "ebsAct" << ": " << rawEbsActuator << " "; newLine=true;}
+  if(servTank) {std::cout << "servTank" << ": " << rawServiceTank << " "; newLine=true;}
+  if(pressReg) {std::cout << "pressReg" << ": " << rawPressureReg << " "; newLine=true;}
+  if(asms) {std::cout << "asms" << ": " << rawAsms << " "; newLine=true;}
+  if(clamped) {std::cout << "clamped" << ": " << rawClamped << " "; newLine=true;}
+  if(ebsOK) {std::cout << "ebsOK" << ": " << rawEbsOK << " "; newLine=true;}
+  if(newLine) std::cout << std::endl;
     }
     m_Payloads.clear();
   }
 }
 void STM::extractPayload()
-{
+{ //std::cout << "receiveBuffer.length() = " << receiveBuffer.length() << std::endl;
 	if(receiveBuffer.length() > 3)
 	{
 	  char *colonSign = NULL;
 		unsigned int lengthOfPayload = strtol(receiveBuffer.c_str(), &colonSign, 10);
-				if (*colonSign == 0x3a) {
-
+		if (*colonSign == 0x3a) {
+      //std::cout << "colonSign == " << colonSign << std::endl;
 			// Found colon sign.
 			// First, check if the buffer is as long as it is stated in the netstring.
 			// This prevents the case where the colon is near the end of string, which can lead to out of range access later
@@ -362,10 +441,20 @@ void STM::extractPayload()
 			if ((colonSign[1 + lengthOfPayload]) == MSG_END) {
 			  // Successfully found a complete Netstring.
 				int start = colonSign + 1 - receiveBuffer.c_str();
-				std::string payload = receiveBuffer.substr(start,lengthOfPayload);
-				//std::cout << payload << std::endl;
-				if(m_Payloads.size() < 100) //Maximum payload storage
-					m_Payloads.push_back(payload);
+				/* For debug the unknown bug (out of range)
+				std::cout << "receiveBuffer.length()=" << receiveBuffer.length() << std::endl;
+				std::cout << "start=" << start << std::endl;
+				if(start > receiveBuffer.length()){
+				  std::cout << colonSign << " " << receiveBuffer.c_str() << std::endl;
+				  std::cout << receiveBuffer << std::endl;
+				}
+				*/
+				if(start +  lengthOfPayload < receiveBuffer.length()){
+				  std::string payload = receiveBuffer.substr(start,lengthOfPayload);
+				  //std::cout << payload << std::endl;
+				  if(m_Payloads.size() < 100) //Maximum payload storage
+					  m_Payloads.push_back(payload);
+				}
 				// Remove decoded Netstring from receiveBuffer
 				char* MsgEndPtr =  colonSign + 1 + lengthOfPayload;
 				int numberOfCharToRemove = MsgEndPtr + 1 - receiveBuffer.c_str(); 
@@ -377,6 +466,7 @@ void STM::extractPayload()
 			  unsigned int endPos = receiveBuffer.find(";");
 			  if(endPos != std::string::npos && endPos+1 < receiveBuffer.length())
 			  {
+			    std::cout << "endPos+1=" << endPos+1 << std::endl;
 			    receiveBuffer = receiveBuffer.substr(endPos+1, receiveBuffer.length() - endPos);
 			  }
 			}
@@ -385,6 +475,7 @@ void STM::extractPayload()
 			  unsigned int endPos = receiveBuffer.find(";");
 			  if(endPos != std::string::npos && endPos+1 < receiveBuffer.length())
 			  {
+			    std::cout << "endPos+1 (2)=" << endPos+1 << std::endl;
 			    receiveBuffer = receiveBuffer.substr(endPos+1, receiveBuffer.length() - endPos);
 			  }
 	  }
@@ -397,6 +488,17 @@ uint32_t STM::getSenderStampOffsetGpio(){
 
 uint32_t STM::getSenderStampOffsetPwm(){
   return m_senderStampOffsetPwm;
+}
+
+void STM::viewAnalogRaw(bool rackPos, bool steerPos, bool ebsLine, bool ebsAct, bool servTank, bool pressReg){
+  bool newLine = false;
+  if(rackPos) {std::cout << "rackPos" << ": " << rawSteerPositionRack << " "; newLine=true;}
+  if(steerPos) {std::cout << "steerPos" << ": " << rawSteerPosition << " "; newLine=true;}
+  if(ebsLine) {std::cout << "ebsLine" << ": " << rawEbsLine << " "; newLine=true;}
+  if(ebsAct) {std::cout << "ebsAct" << ": " << rawEbsActuator << " "; newLine=true;}
+  if(servTank) {std::cout << "servTank" << ": " << rawServiceTank << " "; newLine=true;}
+  if(pressReg) {std::cout << "pressReg" << ": " << rawPressureReg << " "; newLine=true;}
+  if(newLine) std::cout << std::endl;
 }
 
 void STM::tearDown() 
