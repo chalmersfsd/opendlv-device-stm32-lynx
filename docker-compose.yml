@@ -2,9 +2,9 @@ version: '2'
 
 services:
  stm32-lynx:
-  image: namv1994/cfsd19-device-stm32-lynx:v0.0.4
+  image: namv1994/cfsd19-device-stm32-lynx:v0.0.5
   network_mode: "host"
   devices:
-  - "/dev/ttyACM0:/dev/ttyACM0"
-  command: "opendlv-device-stm32-lynx --cid=219 --cidGpio=220 --cidpwm=222 --freq=30 -id=1 --device=/dev/ttyACM0 --verbose --rackPos --steerPos --ebsLine --ebsAct --servTank --pressReg --asms --clamped --ebsOK"
-  
+  - "/dev/ttyACM1:/dev/ttyACM1"
+  command: "opendlv-device-stm32-lynx --cid=219 --cidGpio=220 --cidpwm=222 --freq=30 -id=1 --device=/dev/ttyACM1 --verbose --rackPos --steerPos --ebsLine --ebsAct --servTank --pressReg --asms --clamped --ebsOK"
+#--rackPos --steerPos --ebsLine --ebsAct --servTank --pressReg --asms --clamped --ebsOK

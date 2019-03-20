@@ -112,7 +112,7 @@ class STM {
 	  const double m_analogOffsetServiceTank = 0.11;
 	  const double m_analogOffsetEbsActuator = 0.11;
 	  const double m_analogOffsetPressureReg = 0;
-	  const double m_analogOffsetSteerPositionRack = 28.06;
+	  const double m_analogOffsetSteerPositionRack = 31.06;
 	  
 	  //Pins of BeagleboneBlack and their functionalities
 	  std::map<int, std::string> BBB_GPIO;
@@ -128,29 +128,33 @@ class STM {
     uint32_t getSenderStampOffsetPwm();
 		std::vector<Request> m_PwmRequests;
 		
-	 // Generic send function
+	 //  send function
 	 void send(serial::Port* port);
 	 std::string encodePayload(std::string type, Request rq);
 	 std::string encodeNetstring(const std::string payload);
 	 
-	 // Generic read function
-	 void read(const std::string data);
+	 //  read function
+	 void SendStatusRequestToSTM(serial::Port* port);
+	 void GetBytesFromSTM(const std::string data);
    void extractPayload();
    void decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool rackPos, bool steerPos, bool ebsLine, bool ebsAct, bool servTank, bool pressReg, bool asms, bool clamped, bool ebsOK);
-   void sendBackAnalog(cluon::OD4Session * od4, uint16_t pin, uint32_t rawVal);
+   float sendBackAnalog(cluon::OD4Session * od4, uint16_t pin, uint32_t rawVal);
 	 std::string receiveBuffer;
 	 void sendBackDigital(cluon::OD4Session * od4Gpio, uint16_t pin, uint32_t val);
 	 
+	 // send/read mutex
+	 bool sendOK;
+	 bool readOK;
 	 //Decoded payload container
 	 std::vector<std::string> m_Payloads;
 	 
 	 //view raw analog signals for debugging
-	 uint32_t rawSteerPosition;
-	 uint32_t rawSteerPositionRack;
-	 uint32_t rawServiceTank;
-	 uint32_t rawPressureReg;
-	 uint32_t rawEbsLine;
-	 uint32_t rawEbsActuator;
+	 float rawSteerPosition;
+	 float rawSteerPositionRack;
+	 float rawServiceTank;
+	 float rawPressureReg;
+	 float rawEbsLine;
+	 float rawEbsActuator;
 	 //view digital inputs for debugging
 	 bool rawAsms;
 	 bool rawClamped;

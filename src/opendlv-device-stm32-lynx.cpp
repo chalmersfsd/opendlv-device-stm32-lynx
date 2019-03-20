@@ -99,28 +99,40 @@ int main(int argc, char **argv) {
     }};
     od4Pwm.dataTrigger(opendlv::proxy::PulseWidthModulationRequest::ID(), onPulseWidthModulationRequest);
     
-    /* --- Sending request to STM32 --- */
-    auto atFrequency{[&od4, &stm32]() -> bool
+    /* --- trigger status request to be sent at a given frequency --- */  
+    auto triggerSendStatusRequestThread{[&stm32, &FREQ]()
     {
-      
+      using namespace std::literals::chrono_literals;
+      std::chrono::system_clock::time_point threadTime = std::chrono::system_clock::now();
+      while (true) {
+        std::this_thread::sleep_until(std::chrono::duration<double>(1/FREQ)+threadTime);
+        threadTime = std::chrono::system_clock::now();
+        
+        stm32.readOK = true;
+      }
     }};
-    od4.timeTrigger(FREQ, atFrequency);
-    
-    /* --- COLLECT BYTES FROM STM32F4 --- */
-    auto readingCallback = [&od4, &stm32](const string data){
-      stm32.read(data);
+    std::thread statusThread(triggerSendStatusRequestThread);
+            
+    /* --- Collect bytes from STM32F4 --- */
+    auto readingCallback = [&stm32](const string data){
+      stm32.GetBytesFromSTM(data);
       //std::cout << data << " EOF" << std::endl;
     };
     myPort.read(readingCallback);
 	
     while(1) {
     	//Decode payloads from STM32 end convert and send them as Openddlv messages
-			usleep(5);
+    	if(stm32.readOK){
+			  stm32.SendStatusRequestToSTM(&myPort);
+			  stm32.readOK = false;
+			}
+			usleep(100);
 			stm32.extractPayload();
 			stm32.decodePayload(&od4, &od4Gpio, rackPos, steerPos, ebsLine, ebsAct, servTank, pressReg, asms, clamped, ebsOK);
-			//myPort.write("17:set|assi_red|0000;");
-			usleep(5);
+
+      // send command request to STM32
 			stm32.send(&myPort);
+			usleep(100);
     }
 
   }

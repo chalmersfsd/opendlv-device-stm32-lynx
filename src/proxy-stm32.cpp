@@ -33,6 +33,8 @@ STM::STM(bool verbose, uint32_t id)
     , m_senderStampOffsetPwm(id*1000+300)
     , m_pins()
     , m_debug(verbose)
+    , sendOK(false)
+    , readOK(true)
 {
 	STM::setUp();
 }
@@ -89,7 +91,7 @@ void STM::collectRequests(std::string type, unsigned int pin, int value)
      //std::cout << "Size of m_PwmRequests: " << m_PwmRequests.size() << std::endl;
    }
 }
-/* --- Send requests to STM32F4 --- */
+/* --- Send gpio/pwm requests to STM32F4 --- */
 void STM::send(serial::Port* port)
 {
   //Encode & send GPIO requests
@@ -161,7 +163,16 @@ std::string STM::encodePayload(std::string type, Request rq)
   }
 }
 
-void STM::read(const std::string data)
+//** Functions for getting status from STM32Discovery **
+void STM::SendStatusRequestToSTM(serial::Port* port){
+  // send get request and encode as netstring
+  std::string payload = "get";
+  std::string netstringMsg = encodeNetstring(payload);
+  // send bytes over serial port
+  port->write(netstringMsg);
+}
+
+void STM::GetBytesFromSTM(const std::string data)
 {  
 	//store read bytes in buffer
 	int bufferSize = 512;
@@ -175,7 +186,7 @@ void STM::read(const std::string data)
 }
 
 /* Decode payloads sent from STM32 and send back to other microservices */
-void STM::sendBackAnalog(cluon::OD4Session * od4, uint16_t pin, uint32_t rawVal)
+float STM::sendBackAnalog(cluon::OD4Session * od4, uint16_t pin, uint32_t rawVal)
 {
 		//Currently using old BBB cape, which has 12bit ADC 0-1.8V, while STM32 has 12bit ADC 0-3.3V, thus need to re-scale the raw value
 		rawVal = 3.3/1.8*rawVal;
@@ -183,7 +194,7 @@ void STM::sendBackAnalog(cluon::OD4Session * od4, uint16_t pin, uint32_t rawVal)
 		cluon::data::TimeStamp sampleTime = cluon::time::convert(tp);
 		int16_t senderStamp = (int16_t) pin + m_senderStampOffsetAnalog;
         
-		float value;
+		float value = 0.0;
 		//Convert raw readings(0-4019) to actual measurements (mm, bar)		
 		if(pin == m_analogPinSteerPosition){
     	value = (float)rawVal/((float) m_analogConvSteerPosition)-((float) m_analogOffsetSteerPosition);
@@ -211,7 +222,9 @@ void STM::sendBackAnalog(cluon::OD4Session * od4, uint16_t pin, uint32_t rawVal)
     	opendlv::proxy::VoltageReading msg;
     	msg.torque(value);
     	od4->send(msg, sampleTime, senderStamp);
-		}	
+		}
+		// return converted value for displaying
+		return value;	
 }
 
 void STM::sendBackDigital(cluon::OD4Session * od4Gpio, uint16_t pin, uint32_t val){
@@ -255,8 +268,8 @@ void STM::decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool
       		if(ebsLine){ 
       		  //std::cout << "ebsLine: " << rawVal << " "; newLine = true;
       		}
-      		sendBackAnalog(od4, pin, rawVal);
-      		rawEbsLine = rawVal;
+      		rawEbsLine = sendBackAnalog(od4, pin, rawVal);
+
 				}	
 			}
 			
@@ -274,8 +287,8 @@ void STM::decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool
       		if(servTank){ 
       		 // std::cout << "servTank: " << rawVal << " "; newLine = true;
       		}
-      		sendBackAnalog(od4, pin, rawVal);
-      		rawServiceTank = rawVal;
+      		rawServiceTank = sendBackAnalog(od4, pin, rawVal);
+
 				}	
 			}
 			else {
@@ -296,8 +309,8 @@ void STM::decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool
       		if(ebsAct){ 
       		  //std::cout << "ebsAct: " << rawVal << " "; newLine = true;
       		}
-      		sendBackAnalog(od4, pin, rawVal);
-      		rawEbsActuator = rawVal;
+      		rawEbsActuator = sendBackAnalog(od4, pin, rawVal);
+
 				}	
 			}
 			else {
@@ -318,8 +331,8 @@ void STM::decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool
       		if(pressReg){ 
       		  //std::cout << "pressReg: " << rawVal << " "; newLine = true;
       		}
-      		sendBackAnalog(od4, pin, rawVal);
-      		rawPressureReg = rawVal;
+      		rawPressureReg = sendBackAnalog(od4, pin, rawVal);
+
 				}	
 			}
 			else {
@@ -340,8 +353,8 @@ void STM::decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool
       		if(rackPos){ 
       		  //std::cout << "rackPos: " << rawVal << " "; newLine = true;
       		}
-      		sendBackAnalog(od4, pin, rawVal);
-      		rawSteerPositionRack = rawVal;
+      		rawSteerPositionRack = sendBackAnalog(od4, pin, rawVal);
+
 				}	
 			}
 			else {
@@ -362,8 +375,8 @@ void STM::decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool
       		if(steerPos){ 
       		  //std::cout << "steerPos: " << rawVal << " "; newLine = true;
       		}
-      		sendBackAnalog(od4, pin, rawVal);
-      		rawSteerPosition = rawVal;
+      		rawSteerPosition = sendBackAnalog(od4, pin, rawVal);
+
 				}	
 			}
 			
