@@ -101,9 +101,15 @@ void STM::send(serial::Serial* port)
     {
        std::string payload = encodePayload("gpio",rq);
        std::string netstringMsg = encodeNetstring(payload);
+       
        //send netstring request over serial port
-       std::cout << netstringMsg << std::endl;
-       port->write(netstringMsg);
+       unsigned result = sendWithACK(port, payload, netstringMsg);
+       if(m_debug){
+         if(result == -1)
+           std::cout << "[STM32 Proxy]: Error sending " << netstringMsg << " : no ACK from STM32" << std::endl;
+         else
+           std::cout << "[STM32 Proxy]: " << netstringMsg << " : successfully sent" << std::endl;
+       }     
     }
     // clear all GPIO requests
     m_GpioRequests.clear();
@@ -115,13 +121,48 @@ void STM::send(serial::Serial* port)
     {
        std::string payload = encodePayload("pwm",rq);
        std::string netstringMsg = encodeNetstring(payload);
+       
        //send netstring request over serial port
-       std::cout << netstringMsg << std::endl;
-       port->write(netstringMsg);
+       unsigned result = sendWithACK(port, payload, netstringMsg);
+       if(m_debug){
+         if(result == -1)
+           std::cout << "[STM32 Proxy]: Error sending " << netstringMsg << " : no ACK from STM32" << std::endl;
+         else
+           std::cout << "[STM32 Proxy]: " << netstringMsg << " : successfully sent" << std::endl;
+       }
     }
     // clear all GPIO requests
     m_PwmRequests.clear();
   } 
+}
+
+/* --- Send gpio/pwm requests to STM32F4 with ACK/NACK check --- */
+unsigned int STM::sendWithACK(serial::Serial* port, std::string payload, std::string netstringMsg)
+{
+  port->write(netstringMsg);
+  unsigned int result = 0;
+  unsigned int resendAttempts=3;
+  while(result == 0){
+    // Wait for STM to send back an ACK/NACK message
+    if(port->waitReadable()){
+        std::string resultMsg = port->read((size_t)128);
+        //if STM responds with ACK, then no need to resend
+        if(resultMsg.find(payload + "|ACK") != std::string::npos)
+          result = 1;
+        else
+        //there's an error, resend request
+        {
+          port->write(netstringMsg);
+          resendAttempts--;
+        }
+      }
+      
+      if(resendAttempts == 0) // too many resend attempts without success, quit and return error code
+      {
+        result = -1;
+      }
+    }
+    return result;
 }
 
 std::string STM::encodeNetstring(const std::string payload)
@@ -457,14 +498,6 @@ void STM::extractPayload()
 			if ((colonSign[1 + lengthOfPayload]) == MSG_END) {
 			  // Successfully found a complete Netstring.
 				int start = colonSign + 1 - receiveBuffer.c_str();
-				/* For debug the unknown bug (out of range)
-				std::cout << "receiveBuffer.length()=" << receiveBuffer.length() << std::endl;
-				std::cout << "start=" << start << std::endl;
-				if(start > receiveBuffer.length()){
-				  std::cout << colonSign << " " << receiveBuffer.c_str() << std::endl;
-				  std::cout << receiveBuffer << std::endl;
-				}
-				*/
 				if(start +  lengthOfPayload < receiveBuffer.length()){
 				  std::string payload = receiveBuffer.substr(start,lengthOfPayload);
 				  //std::cout << payload << std::endl;

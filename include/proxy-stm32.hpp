@@ -130,6 +130,7 @@ class STM {
 		
 	 //  send function
 	 void send(serial::Serial* port);
+	 unsigned int sendWithACK(serial::Serial* port, std::string payload, std::string netstringMsg);
 	 std::string encodePayload(std::string type, Request rq);
 	 std::string encodeNetstring(const std::string payload);
 	 

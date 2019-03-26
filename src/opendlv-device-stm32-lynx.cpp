@@ -138,9 +138,8 @@ int main(int argc, char **argv) {
       
       if(!myPort.available())
         stm32.send(&myPort);
-      if(myPort.waitReadable()){
-        std::cout << myPort.read((size_t)256) << std::endl;
-      }
+      // flush input & output buffers
+      myPort.flush();
   }
 	cout << "Exit service\n";
   return retCode;
