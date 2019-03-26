@@ -34,7 +34,8 @@ STM::STM(bool verbose, uint32_t id)
     , m_pins()
     , m_debug(verbose)
     , sendOK(false)
-    , readOK(true)
+    , readOK(false)
+    , bytesAvailable(false)
 {
 	STM::setUp();
 }
@@ -92,7 +93,7 @@ void STM::collectRequests(std::string type, unsigned int pin, int value)
    }
 }
 /* --- Send gpio/pwm requests to STM32F4 --- */
-void STM::send(serial::Port* port)
+void STM::send(serial::Serial* port)
 {
   //Encode & send GPIO requests
   if(m_GpioRequests.size() > 0){
@@ -146,8 +147,10 @@ std::string STM::encodePayload(std::string type, Request rq)
       return payload;
     }
   } else if(type == "pwm") {
-    if(value > 50000)
-      value = 50000;
+    if(value >= 100000){ // steer right, convert to a negative pwm request
+      value = value - 100000; //this is an offset added in logic-lynx-steering for distinguishing negative numbers (since standard pwm request is non-negative)
+      value = -value;
+    }
     //Convert old pwm values (0-50000) to duty cycle (0-100.00 percent)
     int dutyCycle = (int)(((float)value/50000.0)*10000);
     it = BBB_PWM.find(pin);
@@ -164,7 +167,7 @@ std::string STM::encodePayload(std::string type, Request rq)
 }
 
 //** Functions for getting status from STM32Discovery **
-void STM::SendStatusRequestToSTM(serial::Port* port){
+void STM::SendStatusRequestToSTM(serial::Serial* port){
   // send get request and encode as netstring
   std::string payload = "get";
   std::string netstringMsg = encodeNetstring(payload);
@@ -420,12 +423,12 @@ void STM::decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool
       	rawEbsOK = rawVal;
 			}
 			
-			if(rackPos) {std::cout << "rackPos" << ": " << rawSteerPositionRack << " "; newLine=true;}
-  if(steerPos) {std::cout << "steerPos" << ": " << rawSteerPosition << " "; newLine=true;}
-  if(ebsLine) {std::cout << "ebsLine" << ": " << rawEbsLine << " "; newLine=true;}
-  if(ebsAct) {std::cout << "ebsAct" << ": " << rawEbsActuator << " "; newLine=true;}
-  if(servTank) {std::cout << "servTank" << ": " << rawServiceTank << " "; newLine=true;}
-  if(pressReg) {std::cout << "pressReg" << ": " << rawPressureReg << " "; newLine=true;}
+			if(rackPos) {std::cout << "rackPos" << ": " << std::setprecision(2) << rawSteerPositionRack << " "; newLine=true;}
+  if(steerPos) {std::cout << "steerPos" << ": " << std::setprecision(2) << rawSteerPosition << " "; newLine=true;}
+  if(ebsLine) {std::cout << "ebsLine" << ": " << std::setprecision(2) << rawEbsLine << " "; newLine=true;}
+  if(ebsAct) {std::cout << "ebsAct" << ": " << std::setprecision(2) << rawEbsActuator << " "; newLine=true;}
+  if(servTank) {std::cout << "servTank" << ": " << std::setprecision(2) << rawServiceTank << " "; newLine=true;}
+  if(pressReg) {std::cout << "pressReg" << ": " << std::setprecision(2) << rawPressureReg << " "; newLine=true;}
   if(asms) {std::cout << "asms" << ": " << rawAsms << " "; newLine=true;}
   if(clamped) {std::cout << "clamped" << ": " << rawClamped << " "; newLine=true;}
   if(ebsOK) {std::cout << "ebsOK" << ": " << rawEbsOK << " "; newLine=true;}

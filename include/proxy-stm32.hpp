@@ -129,12 +129,12 @@ class STM {
 		std::vector<Request> m_PwmRequests;
 		
 	 //  send function
-	 void send(serial::Port* port);
+	 void send(serial::Serial* port);
 	 std::string encodePayload(std::string type, Request rq);
 	 std::string encodeNetstring(const std::string payload);
 	 
 	 //  read function
-	 void SendStatusRequestToSTM(serial::Port* port);
+	 void SendStatusRequestToSTM(serial::Serial* port);
 	 void GetBytesFromSTM(const std::string data);
    void extractPayload();
    void decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool rackPos, bool steerPos, bool ebsLine, bool ebsAct, bool servTank, bool pressReg, bool asms, bool clamped, bool ebsOK);
@@ -142,9 +142,10 @@ class STM {
 	 std::string receiveBuffer;
 	 void sendBackDigital(cluon::OD4Session * od4Gpio, uint16_t pin, uint32_t val);
 	 
-	 // send/read mutex
+	 // send/read flags
 	 bool sendOK;
 	 bool readOK;
+	 bool bytesAvailable;
 	 //Decoded payload container
 	 std::vector<std::string> m_Payloads;
 	 
