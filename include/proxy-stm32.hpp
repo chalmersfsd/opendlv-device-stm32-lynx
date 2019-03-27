@@ -68,6 +68,7 @@
 #include <vector>
 #include <utility>
 #include <map>
+#include <queue>
 #include "request.hpp"
 class STM {
 	public:
@@ -122,16 +123,16 @@ class STM {
 	 // GPIO/SwitchStateRequest handler
 	 public:
 		uint32_t getSenderStampOffsetGpio();
-		std::vector<Request> m_GpioRequests;
+		std::queue<Request*> m_GpioRequests;
 		
    // PWM request handler
     uint32_t getSenderStampOffsetPwm();
-		std::vector<Request> m_PwmRequests;
+		std::queue<Request*> m_PwmRequests;
 		
 	 //  send function
 	 void send(serial::Serial* port);
 	 unsigned int sendWithACK(serial::Serial* port, std::string payload, std::string netstringMsg);
-	 std::string encodePayload(std::string type, Request rq);
+	 std::string encodePayload(std::string type, Request* rq);
 	 std::string encodeNetstring(const std::string payload);
 	 
 	 //  read function

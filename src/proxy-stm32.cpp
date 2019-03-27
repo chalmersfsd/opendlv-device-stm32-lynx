@@ -79,13 +79,13 @@ void STM::setUp()
 
 void STM::collectRequests(std::string type, unsigned int pin, int value)
 {
-   unsigned int maxRequest = 50;
-   Request request(type, pin, value);
+   unsigned int maxRequest = 100;
+   Request* request = new Request(type, pin, value);
    if(type == "gpio" && m_GpioRequests.size() < maxRequest){
-     m_GpioRequests.push_back(request);
+     m_GpioRequests.push(request);
    }
    else if(type == "pwm" && m_PwmRequests.size() < maxRequest){
-     m_PwmRequests.push_back(request);
+     m_PwmRequests.push(request);
    }
    if(m_debug){
      //std::cout << "Size of m_GpioRequests: " << m_GpioRequests.size() << std::endl;
@@ -96,10 +96,10 @@ void STM::collectRequests(std::string type, unsigned int pin, int value)
 void STM::send(serial::Serial* port)
 {
   //Encode & send GPIO requests
+  if(m_debug){
+    std::cout << "m_GpioRequests.size() = " << m_GpioRequests.size() << std::endl;}
   if(m_GpioRequests.size() > 0){
-    for(Request rq : m_GpioRequests)
-    {
-       std::string payload = encodePayload("gpio",rq);
+       std::string payload = encodePayload("gpio",m_GpioRequests.front());
        std::string netstringMsg = encodeNetstring(payload);
        
        //send netstring request over serial port
@@ -110,16 +110,16 @@ void STM::send(serial::Serial* port)
          else
            std::cout << "[STM32 Proxy]: " << netstringMsg << " : successfully sent" << std::endl;
        }     
-    }
-    // clear all GPIO requests
-    m_GpioRequests.clear();
+    // remove the processed request
+    delete m_GpioRequests.front();
+    m_GpioRequests.pop();
   }
   
   //Encode & send PWM requests
+  if(m_debug){
+    std::cout << "m_PwmRequests.size() = " << m_PwmRequests.size() << std::endl;}
   if(m_PwmRequests.size() > 0){
-    for(Request rq : m_PwmRequests)
-    {
-       std::string payload = encodePayload("pwm",rq);
+       std::string payload = encodePayload("pwm",m_PwmRequests.front());
        std::string netstringMsg = encodeNetstring(payload);
        
        //send netstring request over serial port
@@ -130,9 +130,9 @@ void STM::send(serial::Serial* port)
          else
            std::cout << "[STM32 Proxy]: " << netstringMsg << " : successfully sent" << std::endl;
        }
-    }
-    // clear all GPIO requests
-    m_PwmRequests.clear();
+    // clear all pwm requests
+    delete m_PwmRequests.front();
+    m_PwmRequests.pop();
   } 
 }
 
@@ -170,10 +170,10 @@ std::string STM::encodeNetstring(const std::string payload)
   return std::to_string(payload.length()) + ":" + payload + MSG_END;
 }
 
-std::string STM::encodePayload(std::string type, Request rq)
+std::string STM::encodePayload(std::string type, Request* rq)
 {
-  unsigned int pin = rq.m_pin;
-  int value = rq.m_value;
+  unsigned int pin = rq->m_pin;
+  int value = rq->m_value;
   std::map<int,std::string>::iterator it;
   
   if(type == "gpio"){
@@ -219,7 +219,7 @@ void STM::SendStatusRequestToSTM(serial::Serial* port){
 void STM::GetBytesFromSTM(const std::string data)
 {  
 	//store read bytes in buffer
-	int bufferSize = 512;
+	int bufferSize = 2048;
 	if(receiveBuffer.length() <= bufferSize)
 	{
 	//std::cout << data << std::endl;
@@ -515,7 +515,7 @@ void STM::extractPayload()
 			  unsigned int endPos = receiveBuffer.find(";");
 			  if(endPos != std::string::npos && endPos+1 < receiveBuffer.length())
 			  {
-			    std::cout << "endPos+1=" << endPos+1 << std::endl;
+			   
 			    receiveBuffer = receiveBuffer.substr(endPos+1, receiveBuffer.length() - endPos);
 			  }
 			}
@@ -524,7 +524,7 @@ void STM::extractPayload()
 			  unsigned int endPos = receiveBuffer.find(";");
 			  if(endPos != std::string::npos && endPos+1 < receiveBuffer.length())
 			  {
-			    std::cout << "endPos+1 (2)=" << endPos+1 << std::endl;
+
 			    receiveBuffer = receiveBuffer.substr(endPos+1, receiveBuffer.length() - endPos);
 			  }
 	  }
@@ -553,3 +553,4 @@ void STM::viewAnalogRaw(bool rackPos, bool steerPos, bool ebsLine, bool ebsAct, 
 void STM::tearDown() 
 {
 }
+//catch(...){ std::cout << "exception caught"<< std::endl;}

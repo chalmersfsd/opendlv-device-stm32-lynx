@@ -84,21 +84,22 @@ int main(int argc, char **argv) {
     }};
     std::thread statusThread(triggerSendStatusRequestThread);
     
-
-
     //Creare serial port
     string port(deviceName);
     const uint32_t BAUDRATE{38400};
-    const uint32_t TIMEOUT{5}; //5 ms timeout
+    const uint32_t TIMEOUT{1}; //5 ms timeout
     const uint16_t BUFFER_SIZE{2048};
+    /*
     uint8_t *data = new uint8_t[BUFFER_SIZE];
     size_t size{0};
-
+    */
     serial::Serial myPort(port, BAUDRATE, serial::Timeout::simpleTimeout(TIMEOUT));
     if(VERBOSE){
       cout << "Serial port: " << port << " created\n";
       std::cout << "Device name:" << deviceName << std::endl;
     }
+    // flush input & output buffers
+    myPort.flush();
 
      /* --- Collect gpio request --- */
     auto onSwitchStateRequest{[&od4Gpio, &stm32, &myPort](cluon::data::Envelope &&envelope)
@@ -122,22 +123,23 @@ int main(int argc, char **argv) {
     od4Pwm.dataTrigger(opendlv::proxy::PulseWidthModulationRequest::ID(), onPulseWidthModulationRequest);
     
     while(myPort.isOpen()) {
+      
       if(!myPort.available() && stm32.readOK){ //if no bytes in buffer and triggered at read frequency, then write get status request to stm
         stm32.SendStatusRequestToSTM(&myPort);
-        stm32.readOK = false;
+        stm32.readOK = false;     
       }
-      
+      // wait until stm responds with measurements
       if(myPort.waitReadable()){
         std::string data = myPort.read((size_t)256);
         stm32.GetBytesFromSTM(data);
         stm32.extractPayload();
-			  stm32.decodePayload(&od4, &od4Gpio, rackPos, steerPos, ebsLine, ebsAct, servTank, pressReg, asms, clamped, ebsOK);
+	stm32.decodePayload(&od4, &od4Gpio, rackPos, steerPos, ebsLine, ebsAct, servTank, pressReg, asms, clamped, ebsOK);		 
       }
-      // flush input & output buffers
-      myPort.flush();
-      
-      if(!myPort.available())
+     
+      // Send gpio/pwm requests with ACK checks
+      if(!myPort.available()){
         stm32.send(&myPort);
+      }
       // flush input & output buffers
       myPort.flush();
   }

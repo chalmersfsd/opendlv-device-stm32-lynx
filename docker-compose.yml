@@ -6,5 +6,5 @@ services:
   network_mode: "host"
   devices:
   - "/dev/ttyACM1:/dev/ttyACM1"
-  command: "opendlv-device-stm32-lynx --cid=219 --cidGpio=220 --cidpwm=222 --freq=20 -id=1 --device=/dev/ttyACM1 --verbose"
+  command: "opendlv-device-stm32-lynx --cid=219 --cidGpio=220 --cidpwm=222 --freq=20 -id=1 --device=/dev/ttyACM1"
 #--rackPos --steerPos --ebsLine --ebsAct --servTank --pressReg --asms --clamped --ebsOK
