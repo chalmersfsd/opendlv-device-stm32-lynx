@@ -2,7 +2,7 @@ version: '2'
 
 services:
  stm32-lynx:
-  image: namv1994/cfsd19-device-stm32-lynx:v1.1
+  image: chalmersfsd/opendlv-device-stm32:test-first-version
   network_mode: "host"
   devices:
   - "/dev/ttyACM1:/dev/ttyACM1"

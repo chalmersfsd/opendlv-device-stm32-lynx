@@ -3,9 +3,8 @@ language: cpp
 sudo: required
 branches:
   only:
-  - "/^master$/"
-  - "/^pre-release$/"
-  - "/^v.*$/"
+  - "/^test.*$/"
+  - "/^v[0-9].*$/"
 services:
 - docker
 addons:
@@ -13,24 +12,19 @@ addons:
     update: true
 env:
   global:
-  - BRANCH=${TRAVIS_BRANCH}
-  - COMMIT=${TRAVIS_COMMIT::7}
-  - TAG=${TRAVIS_TAG}
   - DOCKERHUB='chalmersfsd'
   - IMAGE=`echo ${TRAVIS_REPO_SLUG#*/}`
-  - secure: SX5WMC5BIhJx11oD8Xv6HuZD1IruAlpraSz59nlEItI51FRsmkm4offkIdsRRXOylDG+sCJA4GvOo68MJ6INpNtaZc/Srd5cwTSQqY+PYQ+C+/XK6mfCDisFZsQ4taYX3Vg8hGynJTcwxFIzdfkRsqPbjVUJynrvoQiEyPjQq7uMHaHwxC17l/F3ZjOw55e6BtyLKKekrzdfETwg38l8H6UH1SA1ftM6Xo69/1AyV8hI7HX6adbWAtTImKjbp8rWIpYv/XK2n/7emc9Ky3xCBjLgZlvaEk5zlFjL090YgoUQp5RR7U32yLmIi9dElMSGnYdJ/QOVVplEfRrTWizi4Y6+V4/NyTnY+dn/RFUEQFJSacw1odjyDN1LvlgnsC/fgRdNbAlhIfsmQnK7sDhGsLNdwTGJzBCNv2ac+c4Gqh0UBACTXR843KZ4EuTa2JIpo4pXb+s5Vg3yHWxjhuWroGugl5xCcu3H0Gs/uGK6w2SgOhllcBYkvNdbQjEeBt9O0zUgAg1/kNz3Fn7ht9k5l6yejk6FUSD7Awxqid26UbGOSSKAgnKvoykdaLnn/RopjJMo+Y5JvwPofl9hiY8XOw9hAY4d+7vSgKuregUZ/aeop73ybjRhh9xaAPWSE/Z/42xNHSqAHC0O2tfF7O77OaF4EdpqTXZATMBTVbWMSF4=
-  - secure: gowfEbS59eVGHEesWQlVsuzEA0ZCoXifSwt2+JL6geFecsqX1uS+HQb4lsP77Sx0KhZvAlWd8DPuRLXveO7wTo98AxURU/cY/yqFqKFer1CLOXzv+z90K2zXob7C7l4kmL9jO9++NejjJgukzaF7pE51iLdehQZ4WtF61vYMK4xegrkOcjhgmjF5KKSZC349V9pTDsH8GRFfdvkjaJeV6Rro7F9XjRM6ZARgu2zKVoCYyWQvbmkbjQ53Ptt4F4qxu60i1sclyMk209GB34dmz2+WZP9jk+Bp23qQsv/gTJMnVdJvYGkI8soBcZBGbP7CvPpxOmEU+YFk/JxXPYSS+O34FTKsfiU6rqTl2yOT7picbxRRBNrPNhFhb4rEJSHA04eNRnAaJOaU+br0d0Sxnmv9kz3LNYCyWQe/XmpS0t6VzSIm5O2iIJLrOtgqedsDjd7e1rT/4Y7eqWbRknsjXCkGTTc1yJlnF5v+iIorVI/H5F2QaHd9DjPgCTD1OzEhr7tCF19VT0Vtgeru1H7Cc6KQMNGXm473vCedKHxKpg7DhHV9hdq+SJFLhsT0OuCAUiAkRxmafeEu12QeAhUh4OMxjzT37/KDJM9ONsIDfZUeILUflKX6l7O9lRxxQLuB9EF4CaJ7nDIJAUARfe3Lao+Y15wD/Hrbfx3zlTR+jzI=
+  - secure: TRXCzMYYQeK9UPkqQTEDv4usZn/KqRvdYInQ2gn4j80JD3vFouhscrFr9UrzmCKyHcAL4gft29v+K740vi0wXH196xclQdu3avtTF2jAd/+bPRTfy4+W9d92QrQANOBH7ZtNmh6qIz/RFB88ibVcEMQbqb9wQP0QO5QZCUDHFepjtTuwp+tJBkBRP3WZg8MWae7WmZxT7iuqQAk9ddab9SOuvETMer5b/5PfR0LhiE6X9U+Ms4Djn3PfvHGNwpBRo61WjFQcS26NcZcg9EeAVgaRDvi2sljVV8hTE3VI4queoi9LKq5pe2+B3Rhj/idIWAUXrgVYFt1nW4DvC0yRnBrbdKrVFpxgf3sQnR6peBHA0hcVS/qncZn6u7ldwZfXDh36Jw9GMO4xIcZGq4qfH2/a06pbjmBJNNyXOxCgwHr6PDb+h9IjfQe+NNOaipu52UX2+GAFPFwXKdJ1ufEo9rTbFLeOhIbYCSFLGuWEeV00NoG0YVou/b11EwYjSUToZHgcFk3NGBKa0Q8K7Vq1Qe+GZ8ptE4dICln1y5dQxoijHXzt9MVJaOZD8DIVNvHuZKXbZrQOEv9afYKhZOpJxJgPlfql7oWACOJO2QbkamQamvaZzUESDwnhqTfp4kGDD1lExML2Q9ZOoyHmzOFAMofzDv2K2sruOh9X8S3HfQU=
+  - secure: f84Jjs36erlKC2bo4RVt39KQtHXxv0Y/CXUEMEOQdvgFqLbGgAzlp9vWwcHkZmNBMgKoKC+VOqOygScbm8Sj3/yO1AaaCr6VexXU0lcVLQh4PUdOugCNgTILo5A+T7f2kxPlTq6F0fC9o0mizE7HvDMSI9dO2XnaJhHgw73rdPMYZNDpZouSVfjl4/BhYwhCsLkM67ACSSTnIkMVH9pDN1oDMMfNJXxmZnPRmEkUx7O1AAhReCl4dwPl4+iAL8OIur2kh+hyMItgQIW/CvDnhHIAtW0+a+t5bql0yNjGWdek1O5Q3EEocorzSrSaBhCzVzdNrGUQ71KD/MW4aEElOSWvielw2n2yFO9Epyuo/IDAMxLfvHQivCu6KRMTRtbYFMRZEvbZnGaQ7TIGOqYDhLZhVtdFtoZdgV2gzLfxnlAijPcvsqp1WduQ6M92CI5cRWxKRuJgA5JlXbGg2P16mHphyu7h8NJCHRN1L7uWq04eOrpmO66Tu0Je0NDEaDNSYRMXCy7vrCiORuO9l/Xq4vxdvcHR5ejduDtlGWzU1d8WkS6rfi8TYVXM/iuTo7CDeukf7vlcfusUimtlSpOiH+W0fd+AhoDX8miPpgJH317FolLiTCC6C8kLWmk/KknoXieS0+llpfGWgRiIQ8LPGamh+6knJskDIQ6pyGGOROc=
 install:
-- docker build -f Dockerfile.amd64 -t ${IMAGE}:${BRANCH}-${COMMIT} .
+- docker build -f Dockerfile.amd64 -t ${IMAGE} .
 script: skip
 after_success:
-- if [[ -z "${TAG}" ]]; then echo "This commit hasn't been tagged, will not be pushed
-  to dockerhub"; exit 0; fi
-- docker --version
 - echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-- docker tag ${IMAGE}:${BRANCH} ${DOCKERHUB}/${IMAGE}:${TAG}
-- docker push ${DOCKERHUB}/${IMAGE}:${TAG}
-- echo "${DOCKERHUB}/${IMAGE}:${TAG}"
+- if [[ "${TRAVIS_BRANCH}" == *test* ]]; then docker tag ${IMAGE} ${DOCKERHUB}/${IMAGE}:${TRAVIS_BRANCH}${TRAVIS_BUILD_NUMBER};
+  docker push ${DOCKERHUB}/${IMAGE}:${TRAVIS_BRANCH}${TRAVIS_BUILD_NUMBER}; echo "${DOCKERHUB}/${IMAGE}:${TRAVIS_BRANCH}${TRAVIS_BUILD_NUMBER}";
+  else docker tag ${IMAGE} ${DOCKERHUB}/${IMAGE}:${TRAVIS_BRANCH}; docker push ${DOCKERHUB}/${IMAGE}:${TRAVIS_BRANCH};
+  echo "${DOCKERHUB}/${IMAGE}:${TRAVIS_BRANCH}"; fi
 notifications:
   email:
     on_success: never
