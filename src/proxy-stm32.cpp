@@ -97,7 +97,8 @@ void STM::send(serial::Serial* port)
 {
   //Encode & send GPIO requests
   if(m_debug){
-    std::cout << "m_GpioRequests.size() = " << m_GpioRequests.size() << std::endl;}
+    std::cout << "m_GpioRequests.size() = " << m_GpioRequests.size() << std::endl;
+		}
   if(m_GpioRequests.size() > 0){
        std::string payload = encodePayload("gpio",m_GpioRequests.front());
        std::string netstringMsg = encodeNetstring(payload);
@@ -117,7 +118,8 @@ void STM::send(serial::Serial* port)
   
   //Encode & send PWM requests
   if(m_debug){
-    std::cout << "m_PwmRequests.size() = " << m_PwmRequests.size() << std::endl;}
+    std::cout << "m_PwmRequests.size() = " << m_PwmRequests.size() << std::endl;
+		}
   if(m_PwmRequests.size() > 0){
        std::string payload = encodePayload("pwm",m_PwmRequests.front());
        std::string netstringMsg = encodeNetstring(payload);
@@ -279,8 +281,9 @@ void STM::sendBackDigital(cluon::OD4Session * od4Gpio, uint16_t pin, uint32_t va
   od4Gpio->send(msg, sampleTime, senderStamp);
 }
 
-void STM::decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool rackPos, bool steerPos, bool ebsLine, bool ebsAct, bool servTank, bool pressReg, bool asms, bool clamped, bool ebsOK)
+bool STM::decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool rackPos, bool steerPos, bool ebsLine, bool ebsAct, bool servTank, bool pressReg, bool asms, bool clamped, bool ebsOK)
 {
+
 	//std::cout << "m_Payloads.size() == " << m_Payloads.size() << std::endl;
   if(m_Payloads.size() > 0) // Send Analog readings
   {
@@ -476,7 +479,9 @@ void STM::decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool
   if(newLine) std::cout << std::endl;
     }
     m_Payloads.clear();
-  }
+  return true;
+	}
+	return false;
 }
 void STM::extractPayload()
 { //std::cout << "receiveBuffer.length() = " << receiveBuffer.length() << std::endl;

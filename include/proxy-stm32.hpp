@@ -139,7 +139,7 @@ class STM {
 	 void SendStatusRequestToSTM(serial::Serial* port);
 	 void GetBytesFromSTM(const std::string data);
    void extractPayload();
-   void decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool rackPos, bool steerPos, bool ebsLine, bool ebsAct, bool servTank, bool pressReg, bool asms, bool clamped, bool ebsOK);
+   bool decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool rackPos, bool steerPos, bool ebsLine, bool ebsAct, bool servTank, bool pressReg, bool asms, bool clamped, bool ebsOK);
    float sendBackAnalog(cluon::OD4Session * od4, uint16_t pin, uint32_t rawVal);
 	 std::string receiveBuffer;
 	 void sendBackDigital(cluon::OD4Session * od4Gpio, uint16_t pin, uint32_t val);

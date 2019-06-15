@@ -121,24 +121,30 @@ int main(int argc, char **argv) {
 			//std::cout << "Received PWM request: " << pin << ", value: " << value << std::endl;
     }};
     od4Pwm.dataTrigger(opendlv::proxy::PulseWidthModulationRequest::ID(), onPulseWidthModulationRequest);
-    
+    int toRead=0;
     while(myPort.isOpen()) {
       
       if(!myPort.available() && stm32.readOK){ //if no bytes in buffer and triggered at read frequency, then write get status request to stm
         stm32.SendStatusRequestToSTM(&myPort);
-        stm32.readOK = false;     
+        stm32.readOK = false; 
+        toRead+=1;
       }
       // wait until stm responds with measurements
-      if(myPort.waitReadable()){
-        std::string data = myPort.read((size_t)256);
-        stm32.GetBytesFromSTM(data);
-        stm32.extractPayload();
-	stm32.decodePayload(&od4, &od4Gpio, rackPos, steerPos, ebsLine, ebsAct, servTank, pressReg, asms, clamped, ebsOK);		 
-      }
-     
-      // Send gpio/pwm requests with ACK checks
-      if(!myPort.available()){
-        stm32.send(&myPort);
+      if(toRead>0){ //each readings does not need to be checked everytime in the loop.
+        if(myPort.waitReadable()){// and it gives the priority to the readings because sending mutiple requests will block the bus.
+          std::string data = myPort.read((size_t)256);
+          stm32.GetBytesFromSTM(data);
+          stm32.extractPayload();
+          if(stm32.decodePayload(&od4, &od4Gpio, rackPos, steerPos, ebsLine, ebsAct, servTank, pressReg, asms, clamped, ebsOK)){
+            toRead -= 1;
+          }
+        }
+      }     
+      else{
+        // Send gpio/pwm requests with ACK checks
+        if(!myPort.available()){
+          stm32.send(&myPort);
+        }
       }
       // flush input & output buffers
       myPort.flush();
