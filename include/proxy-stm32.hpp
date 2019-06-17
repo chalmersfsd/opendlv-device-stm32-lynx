@@ -143,6 +143,7 @@ class STM {
    float sendBackAnalog(cluon::OD4Session * od4, uint16_t pin, uint32_t rawVal);
 	 std::string receiveBuffer;
 	 void sendBackDigital(cluon::OD4Session * od4Gpio, uint16_t pin, uint32_t val);
+	 float lowPassFilter(float newValue, float oldValue, float alpha);
 	 
 	 // send/read flags
 	 bool sendOK;
@@ -150,6 +151,12 @@ class STM {
 	 bool bytesAvailable;
 	 //Decoded payload container
 	 std::vector<std::string> m_Payloads;
+
+	 // Stored pressure readings for filtering
+	 float m_prevEbsLine 	 = 0.0f;
+	 float m_prevEbsActuator = 0.0f;
+	 float m_prevServiceTank = 0.0f;
+	 float m_prevPressureReg = 0.0f;
 	 
 	 //view raw analog signals for debugging
 	 float rawSteerPosition;
