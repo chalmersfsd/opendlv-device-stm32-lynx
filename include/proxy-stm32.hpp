@@ -109,7 +109,7 @@ class STM {
 	  const double m_analogConvSteerPositionRack = 80.86;
 
 	  const double m_analogOffsetSteerPosition = 27.74;
-	  const double m_analogOffsetEbsLine = 0.11;
+	  const double m_analogOffsetEbsLine = 0.11 + 1.6;
 	  const double m_analogOffsetServiceTank = 0.11;
 	  const double m_analogOffsetEbsActuator = 0.11;
 	  const double m_analogOffsetPressureReg = 0;
