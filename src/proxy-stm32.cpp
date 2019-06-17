@@ -246,12 +246,20 @@ float STM::sendBackAnalog(cluon::OD4Session * od4, uint16_t pin, uint32_t rawVal
     	value = (float)rawVal/((float) m_analogConvSteerPosition)-((float) m_analogOffsetSteerPosition);
 		}else if(pin == m_analogPinEbsLine){
     	value = (float)rawVal/((float) m_analogConvEbsLine)-((float) m_analogOffsetEbsLine);
+			value = lowPassFilter(value, m_prevEbsLine, 0.9f);
+			m_prevEbsLine = value;
 		}else if(pin == m_analogPinServiceTank){
     	value = (float)rawVal/((float) m_analogConvServiceTank)-((float) m_analogOffsetServiceTank);
+			value = lowPassFilter(value, m_prevServiceTank, 0.9f);
+			m_prevServiceTank = value;
 		}else if(pin == m_analogPinEbsActuator){
     	value = (float)rawVal/((float) m_analogConvEbsActuator)-((float) m_analogOffsetEbsActuator);
+			value = lowPassFilter(value, m_prevEbsActuator, 0.9f);
+			m_prevEbsActuator = value;
 		}else if(pin == m_analogPinPressureReg){
     	value = (float)rawVal/((float) m_analogConvPressureReg)-((float) m_analogOffsetPressureReg);
+			value = lowPassFilter(value, m_prevPressureReg, 0.95f);
+			m_prevPressureReg = value;
 		}else if(pin == m_analogPinSteerPositionRack){
     	value = (float)rawVal/((float) m_analogConvSteerPositionRack)-((float) m_analogOffsetSteerPositionRack);
 		}
@@ -559,3 +567,8 @@ void STM::tearDown()
 {
 }
 //catch(...){ std::cout << "exception caught"<< std::endl;}
+
+float STM::lowPassFilter(float newValue, float oldValue, float alpha)
+{
+	return alpha * newValue + (1.0f - alpha) * oldValue;
+}
