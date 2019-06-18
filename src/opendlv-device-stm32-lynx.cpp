@@ -148,6 +148,7 @@ int main(int argc, char **argv) {
       }
       // flush input & output buffers
       myPort.flush();
+    }
 	cout << "Exit service\n";
   return retCode;
   }
