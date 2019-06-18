@@ -124,7 +124,7 @@ int main(int argc, char **argv) {
     int toRead=0;
     while(myPort.isOpen()) {
       
-      if(!myPort.available() && stm32.readOK){ //if no bytes in buffer and triggered at read frequency, then write get status request to stm
+      if(stm32.readOK){ //if no bytes in buffer and triggered at read frequency, then write get status request to stm
         stm32.SendStatusRequestToSTM(&myPort);
         stm32.readOK = false; 
         toRead+=1;
@@ -148,7 +148,6 @@ int main(int argc, char **argv) {
       }
       // flush input & output buffers
       myPort.flush();
-  }
 	cout << "Exit service\n";
   return retCode;
   }
