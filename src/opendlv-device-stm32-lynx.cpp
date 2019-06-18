@@ -142,9 +142,9 @@ int main(int argc, char **argv) {
       }     
       else{
         // Send gpio/pwm requests with ACK checks
-        if(!myPort.available()){
+       if(!myPort.available()){
           stm32.send(&myPort);
-        }
+       }
       }
       // flush input & output buffers
       myPort.flush();

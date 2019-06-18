@@ -101,19 +101,21 @@ void STM::send(serial::Serial* port)
 		}
   if(m_GpioRequests.size() > 0){
        std::string payload = encodePayload("gpio",m_GpioRequests.front());
-       std::string netstringMsg = encodeNetstring(payload);
+       if (payload != "error"){
+         std::string netstringMsg = encodeNetstring(payload);
        
-       //send netstring request over serial port
-       unsigned result = sendWithACK(port, payload, netstringMsg);
-       if(m_debug){
-         if(result == -1)
-           std::cout << "[STM32 Proxy]: Error sending " << netstringMsg << " : no ACK from STM32" << std::endl;
-         else
-           std::cout << "[STM32 Proxy]: " << netstringMsg << " : successfully sent" << std::endl;
-       }     
-    // remove the processed request
-    delete m_GpioRequests.front();
-    m_GpioRequests.pop();
+         //send netstring request over serial port
+         unsigned result = sendWithACK(port, payload, netstringMsg);
+         if(m_debug){
+           if(result == -1)
+             std::cout << "[STM32 Proxy]: Error sending " << netstringMsg << " : no ACK from STM32" << std::endl;
+           else
+             std::cout << "[STM32 Proxy]: " << netstringMsg << " : successfully sent" << std::endl;
+       	  }
+	}     
+        // remove the processed request
+       delete m_GpioRequests.front();
+       m_GpioRequests.pop();
   }
   
   //Encode & send PWM requests
@@ -122,19 +124,21 @@ void STM::send(serial::Serial* port)
 		}
   if(m_PwmRequests.size() > 0){
        std::string payload = encodePayload("pwm",m_PwmRequests.front());
-       std::string netstringMsg = encodeNetstring(payload);
+       if (payload != "error"){
+         std::string netstringMsg = encodeNetstring(payload);
        
-       //send netstring request over serial port
-       unsigned result = sendWithACK(port, payload, netstringMsg);
-       if(m_debug){
-         if(result == -1)
-           std::cout << "[STM32 Proxy]: Error sending " << netstringMsg << " : no ACK from STM32" << std::endl;
-         else
-           std::cout << "[STM32 Proxy]: " << netstringMsg << " : successfully sent" << std::endl;
+         //send netstring request over serial port
+         unsigned result = sendWithACK(port, payload, netstringMsg);
+         if(m_debug){
+           if(result == -1)
+             std::cout << "[STM32 Proxy]: Error sending " << netstringMsg << " : no ACK from STM32" << std::endl;
+           else
+             std::cout << "[STM32 Proxy]: " << netstringMsg << " : successfully sent" << std::endl;
+         }
        }
-    // clear all pwm requests
-    delete m_PwmRequests.front();
-    m_PwmRequests.pop();
+       // clear all pwm requests
+       delete m_PwmRequests.front();
+       m_PwmRequests.pop();
   } 
 }
 
