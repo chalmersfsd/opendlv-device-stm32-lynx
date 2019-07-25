@@ -104,8 +104,8 @@ int32_t main(int32_t argc, char **argv) {
     uint32_t toRead{0};
     while (serial.isOpen()) {
       double timeSinceLastStatusRequest{
-        cluon::time::toMicroseconds(cluon::time::now()) - 
-        cluon::time::toMicroseconds(lastStatusRequest) / 1000000.0};
+        (cluon::time::toMicroseconds(cluon::time::now()) - 
+        cluon::time::toMicroseconds(lastStatusRequest)) / 1000000.0};
 
       if (timeSinceLastStatusRequest > stateRequestPeriod) {
         std::lock_guard<std::mutex> lock(stmMutex);
