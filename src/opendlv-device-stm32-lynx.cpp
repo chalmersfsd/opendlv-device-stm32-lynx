@@ -101,7 +101,6 @@ int32_t main(int32_t argc, char **argv) {
       stm.sendStatusRequest(serial);
     }
 
-    uint32_t toRead{0};
     while (serial.isOpen()) {
       double timeSinceLastStatusRequest{
         (cluon::time::toMicroseconds(cluon::time::now()) - 
@@ -111,25 +110,23 @@ int32_t main(int32_t argc, char **argv) {
         std::lock_guard<std::mutex> lock(stmMutex);
         stm.sendStatusRequest(serial);
         lastStatusRequest = cluon::time::now();
-        toRead += 1;
       }
 
-      if (toRead > 0) {
-        if (serial.waitReadable()) {
-          std::lock_guard<std::mutex> lock(stmMutex);
-          std::string data = serial.read(static_cast<size_t>(256));
-          if (stm.decode(od4, data)) {
-            toRead -= 1;
-          }
-        }
-      } else {
-        if(!serial.available()){
-          std::lock_guard<std::mutex> lock(stmMutex);
-          stm.send(serial);
-        }
+      if (serial.waitReadable()) {
+        std::lock_guard<std::mutex> lock(stmMutex);
+        std::string data = serial.read(static_cast<size_t>(256));
+        stm.decode(od4, data);
+       
+      }
+      
+      if (!serial.available()) {
+        std::lock_guard<std::mutex> lock(stmMutex);
+        stm.send(serial);
       }
 
       serial.flush();
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     return retCode;
