@@ -120,6 +120,9 @@ int32_t STM::sendWithAck(serial::Serial &serial, std::string payload)
 {
   std::string netstringMsg = encodeNetstring(payload);
   serial.write(netstringMsg);
+  if (m_verbose) {
+    std::cout << "To STM: " << payload << std::endl;
+  }
   uint32_t result = 0;
   uint32_t resendAttempts = 3;
   while (result == 0) {
@@ -127,6 +130,9 @@ int32_t STM::sendWithAck(serial::Serial &serial, std::string payload)
     if (serial.waitReadable()) {
       std::string resultMsg = serial.read(static_cast<size_t>(128));
       if (resultMsg.find(payload + "|ACK") != std::string::npos) {
+        if (m_verbose) {
+          std::cout << " ... got ACK" << std::endl;
+        }
         result = 1;
       } else {
         serial.write(netstringMsg);
@@ -333,6 +339,9 @@ bool STM::decode(cluon::OD4Session &od4, std::string data)
           std::string payload = m_receiveBuffer.substr(start, lengthOfPayload);
           if(payloads.size() < 100) {
             payloads.push_back(payload);
+            if (m_verbose) {
+              std::cout << "From STM: " << payload << std::endl;
+            }
           } else {
             // Error, dropped payload
           }
