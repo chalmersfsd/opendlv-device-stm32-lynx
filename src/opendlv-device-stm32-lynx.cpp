@@ -116,6 +116,7 @@ int32_t main(int32_t argc, char **argv) {
 
       if (toRead > 0) {
         if (serial.waitReadable()) {
+          std::lock_guard<std::mutex> lock(stmMutex);
           std::string data = serial.read(static_cast<size_t>(256));
           if (stm.decode(od4, data)) {
             toRead -= 1;
@@ -123,6 +124,7 @@ int32_t main(int32_t argc, char **argv) {
         }
       } else {
         if(!serial.available()){
+          std::lock_guard<std::mutex> lock(stmMutex);
           stm.send(serial);
         }
       }
