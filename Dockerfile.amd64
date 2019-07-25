@@ -37,7 +37,7 @@ WORKDIR /opt/sources
 RUN mkdir -p build && \
 	cd build && \
 	cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/tmp/opendlv-device-stm32-lynx-dest .. && \
-	make -j3 && make test && make install 
+	make -j3 && make install 
 
 #Deploy the microservice
 FROM alpine:3.8

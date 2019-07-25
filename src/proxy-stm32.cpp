@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018  Christian Berger
+ * Copyright (C) 2019 Nam Vu, Dan Andersson
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,157 +18,127 @@
 #include "cluon-complete.hpp"
 #include "proxy-stm32.hpp"
 
-#include <fstream>
 #include <iostream>
-#include <cstring>
-#include <vector>
-#include <string>
-#include <ctime>
-#include <chrono>
 
-STM::STM(bool verbose, uint32_t id)
-    : m_conversionConst(1)
-    , m_senderStampOffsetAnalog(id*1000+200)
-    , m_senderStampOffsetGpio(id*1000)
-    , m_senderStampOffsetPwm(id*1000+300)
-    , m_pins()
-    , m_debug(verbose)
-    , sendOK(false)
-    , readOK(false)
-    , bytesAvailable(false)
+Request::Request(std::string a_type, uint32_t a_pin, int32_t a_value)
+  : type(a_type)
+  , pin(a_pin)
+  , value(a_value)
 {
-	STM::setUp();
+}
+
+STM::STM(uint32_t id, bool verbose)
+  : m_receiveBuffer()
+  , m_senderStampOffsetAnalog(id * 1000 + 200)
+  , m_senderStampOffsetGpio(id * 1000)
+  , m_senderStampOffsetPwm(id * 1000 + 300)
+  , m_verbose(verbose)
+{
+  m_gpioPins[65] = CLAMP_SET;
+  m_gpioPins[45] = COMPRESSOR;
+  m_gpioPins[61] = EBS_RELIEF;
+  m_gpioPins[44] = EBS_SPEAKER;
+  m_gpioPins[66] = FINISHED;
+  m_gpioPins[27] = HEART_BEAT;	
+  m_gpioPins[46] = RACK_RIGHT;
+  m_gpioPins[47] = RACK_LEFT;
+  m_gpioPins[69] = SERVICE_BREAK;
+  m_gpioPins[68] = REDUNDENCY;
+  m_gpioPins[67] = SHUTDOWN;
+  m_gpioPins[62] = SPARE;
+
+  m_gpioPins[49] = EBS_OK;
+  m_gpioPins[112] = CLAMPED_SENSOR;
+  m_gpioPins[115] = ASMS;
+
+  m_pwmPins[40] = STEER_SPEED;
+  m_pwmPins[41] = BRAKE_PRESSURE;
+  m_pwmPins[0] = ASSI_BLUE;
+  m_pwmPins[20] = ASSI_RED;
+  m_pwmPins[21] = ASSI_GREEN;
+
+  m_analogPins[STEER_POS] = 0;
+  m_analogPins[EBS_LINE] = 1;
+  m_analogPins[SERVICE_TANK] = 2;
+  m_analogPins[EBS_ACTUATOR] = 3;
+  m_analogPins[PRESSURE_RAG] = 5;
+  m_analogPins[POSITION_RACK] = 6;
 }
 
 STM::~STM()
 {
 }
 
-void STM::setUp() 
+void STM::collectRequests(std::string type, uint32_t pin, int32_t value)
 {
-	BBB_GPIO[65] = CLAMP_SET;
-	BBB_GPIO[45] = COMPRESSOR;
-	BBB_GPIO[61] = EBS_RELIEF;
-	BBB_GPIO[44] = EBS_SPEAKER;
-	BBB_GPIO[66] = FINISHED;
-	BBB_GPIO[27] = HEART_BEAT;	
-	BBB_GPIO[46] = RACK_RIGHT;
-	BBB_GPIO[47] = RACK_LEFT;
-	BBB_GPIO[69] = SERVICE_BREAK;
-	BBB_GPIO[68] = REDUNDENCY;
-	BBB_GPIO[67] = SHUTDOWN;
-	BBB_GPIO[62] = SPARE;
-	
-	BBB_GPIO[49] = EBS_OK;
-	BBB_GPIO[112] = CLAMPED_SENSOR;
-	BBB_GPIO[115] = ASMS;
-	
-	BBB_PWM[40] = STEER_SPEED;
-	BBB_PWM[41] = BRAKE_PRESSURE;
-	BBB_PWM[0] = ASSI_BLUE;
-	BBB_PWM[20] = ASSI_RED;
-	BBB_PWM[21] = ASSI_GREEN;
-	
-	BBB_Analog[STEER_POS] = 0;
-	BBB_Analog[EBS_LINE] = 1;
-	BBB_Analog[SERVICE_TANK] = 2;
-	BBB_Analog[EBS_ACTUATOR] = 3;
-	BBB_Analog[PRESSURE_RAG] = 5;
-	BBB_Analog[POSITION_RACK] = 6;
-}
+  uint32_t const maxRequest = 100;
 
-void STM::collectRequests(std::string type, unsigned int pin, int value)
-{
-   unsigned int maxRequest = 100;
-   Request* request = new Request(type, pin, value);
-   if(type == "gpio" && m_GpioRequests.size() < maxRequest){
-     m_GpioRequests.push(request);
-   }
-   else if(type == "pwm" && m_PwmRequests.size() < maxRequest){
-     m_PwmRequests.push(request);
-   }
-   if(m_debug){
-     //std::cout << "Size of m_GpioRequests: " << m_GpioRequests.size() << std::endl;
-     //std::cout << "Size of m_PwmRequests: " << m_PwmRequests.size() << std::endl;
-   }
-}
-/* --- Send gpio/pwm requests to STM32F4 --- */
-void STM::send(serial::Serial* port)
-{
-  //Encode & send GPIO requests
-  if(m_debug){
-    std::cout << "m_GpioRequests.size() = " << m_GpioRequests.size() << std::endl;
-		}
-  if(m_GpioRequests.size() > 0){
-       std::string payload = encodePayload("gpio",m_GpioRequests.front());
-       if (payload != "error"){
-         std::string netstringMsg = encodeNetstring(payload);
-       
-         //send netstring request over serial port
-         unsigned result = sendWithACK(port, payload, netstringMsg);
-         if(m_debug){
-           if(result == -1)
-             std::cout << "[STM32 Proxy]: Error sending " << netstringMsg << " : no ACK from STM32" << std::endl;
-           else
-             std::cout << "[STM32 Proxy]: " << netstringMsg << " : successfully sent" << std::endl;
-       	  }
-	}     
-        // remove the processed request
-       delete m_GpioRequests.front();
-       m_GpioRequests.pop();
+  Request request(type, pin, value);
+  if (type == "gpio" && m_gpioRequest.size() < maxRequest) {
+    m_gpioRequest.push(request);
+    if (m_verbose) {
+      std::cout << "Number of GPIO requets in queue: " << m_gpioRequest.size() 
+        << std::endl;
+    }
+  } else if (type == "pwm" && m_pwmRequest.size() < maxRequest) {
+    m_pwmRequest.push(request);
+    if (m_verbose) {
+      std::cout << "Number of PWM requets in queue: " << m_pwmRequest.size() 
+        << std::endl;
+    }
   }
-  
-  //Encode & send PWM requests
-  if(m_debug){
-    std::cout << "m_PwmRequests.size() = " << m_PwmRequests.size() << std::endl;
-		}
-  if(m_PwmRequests.size() > 0){
-       std::string payload = encodePayload("pwm",m_PwmRequests.front());
-       if (payload != "error"){
-         std::string netstringMsg = encodeNetstring(payload);
-       
-         //send netstring request over serial port
-         unsigned result = sendWithACK(port, payload, netstringMsg);
-         if(m_debug){
-           if(result == -1)
-             std::cout << "[STM32 Proxy]: Error sending " << netstringMsg << " : no ACK from STM32" << std::endl;
-           else
-             std::cout << "[STM32 Proxy]: " << netstringMsg << " : successfully sent" << std::endl;
-         }
-       }
-       // clear all pwm requests
-       delete m_PwmRequests.front();
-       m_PwmRequests.pop();
-  } 
 }
 
-/* --- Send gpio/pwm requests to STM32F4 with ACK/NACK check --- */
-unsigned int STM::sendWithACK(serial::Serial* port, std::string payload, std::string netstringMsg)
+void STM::send(serial::Serial &serial)
 {
-  port->write(netstringMsg);
-  unsigned int result = 0;
-  unsigned int resendAttempts=3;
-  while(result == 0){
-    // Wait for STM to send back an ACK/NACK message
-    if(port->waitReadable()){
-        std::string resultMsg = port->read((size_t)128);
-        //if STM responds with ACK, then no need to resend
-        if(resultMsg.find(payload + "|ACK") != std::string::npos)
-          result = 1;
-        else
-        //there's an error, resend request
-        {
-          port->write(netstringMsg);
-          resendAttempts--;
-        }
-      }
-      
-      if(resendAttempts == 0) // too many resend attempts without success, quit and return error code
-      {
-        result = -1;
+  while (m_gpioRequest.size() > 0) {
+    std::string payload = encodePayload("gpio", m_gpioRequest.front());
+    if (!payload.empty()) {
+      int32_t result = sendWithAck(serial, payload);
+      if (result == -1) {
+        std::cout << "[STM32 Proxy]: Error sending " 
+          << encodeNetstring(payload) << " : no ACK from STM32" << std::endl;
       }
     }
-    return result;
+    m_gpioRequest.pop();
+  }
+
+  while (m_pwmRequest.size() > 0) {
+    std::string payload = encodePayload("pwm", m_pwmRequest.front());
+    if (!payload.empty()) {
+      int32_t result = sendWithAck(serial, payload);
+      if(result == -1) {
+        std::cout << "[STM32 Proxy]: Error sending "
+          << encodeNetstring(payload) << " : no ACK from STM32" << std::endl;
+      }
+    }
+    m_pwmRequest.pop();
+  }
+}
+
+int32_t STM::sendWithAck(serial::Serial &serial, std::string payload)
+{
+  std::string netstringMsg = encodeNetstring(payload);
+  serial.write(netstringMsg);
+  uint32_t result = 0;
+  uint32_t resendAttempts = 3;
+  while (result == 0) {
+    // Wait for STM to send back an ACK/NACK message
+    if (serial.waitReadable()) {
+      std::string resultMsg = serial.read(static_cast<size_t>(128));
+      if (resultMsg.find(payload + "|ACK") != std::string::npos) {
+        result = 1;
+      } else {
+        serial.write(netstringMsg);
+        resendAttempts--;
+      }
+    }
+    if (resendAttempts == 0) {
+      // Error, did not get ack
+      result = -1;
+    }
+  }
+  return result;
 }
 
 std::string STM::encodeNetstring(const std::string payload)
@@ -176,403 +146,362 @@ std::string STM::encodeNetstring(const std::string payload)
   return std::to_string(payload.length()) + ":" + payload + MSG_END;
 }
 
-std::string STM::encodePayload(std::string type, Request* rq)
+std::string STM::encodePayload(std::string type, Request const &request)
 {
-  unsigned int pin = rq->m_pin;
-  int value = rq->m_value;
-  std::map<int,std::string>::iterator it;
-  
-  if(type == "gpio"){
-    it = BBB_GPIO.find(pin);
-    if (it == BBB_GPIO.end()){
-      //std::cout << "ERROR in encodePayload(): cannot find requested pin: " << pin << std::endl;
-      return "error";
-    } 
-    else
-    {
-      std::string payload = std::string(SET) + DELIMITER + it->second + DELIMITER + std::to_string(value);
+  uint32_t pin = request.pin;
+  int32_t value = request.value;
+  std::map<int, std::string>::iterator it;
+
+  if (type == "gpio") {
+    it = m_gpioPins.find(pin);
+    if (it == m_gpioPins.end()) {
+      // Error, cannot find requested pin.
+      return "";
+    } else {
+      std::string payload = std::string(SET) + DELIMITER + it->second 
+        + DELIMITER + std::to_string(value);
       return payload;
     }
-  } else if(type == "pwm") {
-    if(value >= 100000){ // steer right, convert to a negative pwm request
-      value = value - 100000; //this is an offset added in logic-lynx-steering for distinguishing negative numbers (since standard pwm request is non-negative)
-      value = -value;
-    }
-    //Convert old pwm values (0-50000) to duty cycle (0-100.00 percent)
-    int dutyCycle = (int)(((float)value/50000.0)*10000);
-    it = BBB_PWM.find(pin);
-    if (it == BBB_PWM.end()){
-      //std::cout << "ERROR in encodePayload(): cannot find requested pin: " << pin << std::endl;
-      return "error";
-    } 
-    else
-    {
-      std::string payload = std::string(SET) + DELIMITER + it->second + DELIMITER + std::to_string(dutyCycle);
+  } else if (type == "pwm") {
+    it = m_pwmPins.find(pin);
+    if (it == m_pwmPins.end()) {
+      // Error, cannot find requested pin.
+      return "";
+    } else {
+      if (value >= 100000) { 
+        // steer right, convert to a negative pwm request
+        value = value - 100000;
+        // this is an offset added in logic-lynx-steering for distinguishing
+        // negative numbers (since standard pwm request is non-negative)
+        value = -value;
+      }
+      // Convert old pwm values (0-50000) to duty cycle (0-100.00 percent)
+      int32_t dutyCycle = static_cast<int32_t>(
+          (static_cast<float>(value) / 50000.0f) * 10000);
+      std::string payload = std::string(SET) + DELIMITER + it->second
+        + DELIMITER + std::to_string(dutyCycle);
       return payload;
     }
   }
+  return "";
 }
 
-//** Functions for getting status from STM32Discovery **
-void STM::SendStatusRequestToSTM(serial::Serial* port){
-  // send get request and encode as netstring
+void STM::sendStatusRequest(serial::Serial &serial)
+{
   std::string payload = "get";
   std::string netstringMsg = encodeNetstring(payload);
-  // send bytes over serial port
-  port->write(netstringMsg);
+  serial.write(netstringMsg);
 }
 
-void STM::GetBytesFromSTM(const std::string data)
-{  
-	//store read bytes in buffer
-	int bufferSize = 2048;
-	if(receiveBuffer.length() <= bufferSize)
-	{
-	//std::cout << data << std::endl;
-	std::stringstream ss;
-	ss << receiveBuffer << data;
-	receiveBuffer = ss.str();
-	}
-}
-
-/* Decode payloads sent from STM32 and send back to other microservices */
-float STM::sendBackAnalog(cluon::OD4Session * od4, uint16_t pin, uint32_t rawVal)
+float STM::sendAnalog(cluon::OD4Session &od4, uint16_t pin, uint32_t rawInt)
 {
-		//Currently using old BBB cape, which has 12bit ADC 0-1.8V, while STM32 has 12bit ADC 0-3.3V, thus need to re-scale the raw value
-		rawVal = 3.3/1.8*rawVal;
-		std::chrono::system_clock::time_point tp = std::chrono::system_clock::now();
-		cluon::data::TimeStamp sampleTime = cluon::time::convert(tp);
-		int16_t senderStamp = (int16_t) pin + m_senderStampOffsetAnalog;
-        
-		float value = 0.0;
-		//Convert raw readings(0-4019) to actual measurements (mm, bar)		
-		if(pin == m_analogPinSteerPosition){
-    	value = (float)rawVal/((float) m_analogConvSteerPosition)-((float) m_analogOffsetSteerPosition);
-		}else if(pin == m_analogPinEbsLine){
-    	value = (float)rawVal/((float) m_analogConvEbsLine)-((float) m_analogOffsetEbsLine);
-			value = lowPassFilter(value, m_prevEbsLine, 0.9f);
-			m_prevEbsLine = value;
-		}else if(pin == m_analogPinServiceTank){
-    	value = (float)rawVal/((float) m_analogConvServiceTank)-((float) m_analogOffsetServiceTank);
-			value = lowPassFilter(value, m_prevServiceTank, 0.9f);
-			m_prevServiceTank = value;
-		}else if(pin == m_analogPinEbsActuator){
-    	value = (float)rawVal/((float) m_analogConvEbsActuator)-((float) m_analogOffsetEbsActuator);
-			value = lowPassFilter(value, m_prevEbsActuator, 0.9f);
-			m_prevEbsActuator = value;
-		}else if(pin == m_analogPinPressureReg){
-    	value = (float)rawVal/((float) m_analogConvPressureReg)-((float) m_analogOffsetPressureReg);
-			value = lowPassFilter(value, m_prevPressureReg, 0.95f);
-			m_prevPressureReg = value;
-		}else if(pin == m_analogPinSteerPositionRack){
-    	value = (float)rawVal/((float) m_analogConvSteerPositionRack)-((float) m_analogOffsetSteerPositionRack);
-		}
-		//Package & send the messages to other microservices
-		if(pin == m_analogPinSteerPosition || pin == m_analogPinSteerPositionRack){
-    	opendlv::proxy::GroundSteeringReading msgSteer;
-    	msgSteer.groundSteering(value);
-    	od4->send(msgSteer, sampleTime, senderStamp);
-		}else if(pin == m_analogPinEbsLine || pin == m_analogPinServiceTank || pin == m_analogPinEbsActuator || pin == m_analogPinPressureReg){
-    	opendlv::proxy::PressureReading msgPressure;
-    	msgPressure.pressure(value);
-    	od4->send(msgPressure, sampleTime, senderStamp);
-		}else{
-    	opendlv::proxy::VoltageReading msg;
-    	msg.torque(value);
-    	od4->send(msg, sampleTime, senderStamp);
-		}
-		// return converted value for displaying
-		return value;	
+  uint16_t const analogPinSteerPosition{0};
+  uint16_t const analogPinSteerPositionRack{6};
+  uint16_t const analogPinServiceTank{2};
+  uint16_t const analogPinPressureReg{5};
+  uint16_t const analogPinEbsLine{1};
+  uint16_t const analogPinEbsActuator{3};
+    
+  float const analogConvSteerPosition{80.38f};
+  float const analogConvEbsLine{378.5f};
+  float const analogConvServiceTank{377.6f};
+  float const analogConvEbsActuator{377.9f};
+  float const analogConvPressureReg{378.7f};
+  float const analogConvSteerPositionRack{80.86f};
+              
+  float const analogOffsetSteerPosition{27.74f};
+  float const analogOffsetEbsLine{0.11f + 1.6f};
+  float const analogOffsetServiceTank{0.11f};
+  float const analogOffsetEbsActuator{0.11f};
+  float const analogOffsetPressureReg{0.0f};
+  float const analogOffsetSteerPositionRack{31.06f};
+
+  cluon::data::TimeStamp sampleTime{cluon::time::now()};
+  int16_t senderStamp = pin + m_senderStampOffsetAnalog;
+  
+  // Convert raw readings (0-4019) to actual measurements (mm, bar)		
+  // STM32 has 12bit ADC 0-3.3V, thus need to re-scale the raw value
+  float rawValue = 3.3f * rawInt / 1.8f;
+
+  float value = 0.0;
+  switch (pin) {
+    case analogPinSteerPosition:
+      {
+        value = rawValue / analogConvSteerPosition 
+          - analogOffsetSteerPosition;
+        break;
+      }
+    case analogPinEbsLine:
+      {
+        value = rawValue / analogConvEbsLine 
+          - analogOffsetEbsLine;
+        value = lowpassFilter(value, m_prevEbsLine, 0.9f);
+        m_prevEbsLine = value;
+        break;
+      }
+    case analogPinServiceTank:
+      {
+        value = rawValue / analogConvServiceTank 
+          - analogOffsetServiceTank;
+        value = lowpassFilter(value, m_prevServiceTank, 0.9f);
+        m_prevServiceTank = value;
+        break;
+      }
+    case analogPinEbsActuator:
+      {
+        value = rawValue / analogConvEbsActuator 
+          - analogOffsetEbsActuator;
+        value = lowpassFilter(value, m_prevEbsActuator, 0.9f);
+        m_prevEbsActuator = value;
+        break;
+      }
+    case analogPinPressureReg:
+      {
+        value = rawValue / analogConvPressureReg
+          - analogOffsetPressureReg;
+        value = lowpassFilter(value, m_prevPressureReg, 0.95f);
+        m_prevPressureReg = value;
+        break;
+      }
+    case analogPinSteerPositionRack:
+      {
+        value = rawValue / analogConvSteerPositionRack
+          - analogOffsetSteerPositionRack;
+        break;
+      }
+    default:
+      {
+      }
+  }
+
+  if (pin == analogPinSteerPosition || pin == analogPinSteerPositionRack) {
+    opendlv::proxy::GroundSteeringReading msg;
+    msg.groundSteering(value);
+    od4.send(msg, sampleTime, senderStamp);
+  } else if (pin == analogPinEbsLine || pin == analogPinServiceTank 
+      || pin == analogPinEbsActuator || pin == analogPinPressureReg) {
+    opendlv::proxy::PressureReading msg;
+    msg.pressure(value);
+    od4.send(msg, sampleTime, senderStamp);
+  } else {
+    opendlv::proxy::VoltageReading msg;
+    msg.voltage(value);
+    od4.send(msg, sampleTime, senderStamp);
+  }
+
+  return value;	
 }
 
-void STM::sendBackDigital(cluon::OD4Session * od4Gpio, uint16_t pin, uint32_t val){
-  cluon::data::TimeStamp sampleTime = cluon::time::now();
+void STM::sendDigital(cluon::OD4Session &od4, uint16_t pin, bool val) {
+  cluon::data::TimeStamp sampleTime{cluon::time::now()};
   opendlv::proxy::SwitchStateReading msg;
-  msg.state((bool)val);
+  msg.state(val);
   int16_t senderStamp = pin + m_senderStampOffsetGpio;
-  od4Gpio->send(msg, sampleTime, senderStamp);
+  od4.send(msg, sampleTime, senderStamp);
 }
 
-bool STM::decodePayload(cluon::OD4Session* od4, cluon::OD4Session* od4Gpio, bool rackPos, bool steerPos, bool ebsLine, bool ebsAct, bool servTank, bool pressReg, bool asms, bool clamped, bool ebsOK)
+bool STM::decode(cluon::OD4Session &od4, std::string data)
 {
+  uint32_t bufferSize = 2048;
+  if (m_receiveBuffer.length() <= bufferSize) {
+    std::stringstream ss;
+    ss << m_receiveBuffer << data;
+    m_receiveBuffer = ss.str();
+  }
 
-	//std::cout << "m_Payloads.size() == " << m_Payloads.size() << std::endl;
-  if(m_Payloads.size() > 0) // Send Analog readings
-  {
-    for(std::string payload : m_Payloads)
-    { 
-      //std::cout << "payload == " << payload << std::endl;
-      bool newLine = false;   
-      char* endptr;
-      size_t pos = std::string::npos;
-      unsigned int delimiterPos1;
-      unsigned int rawVal;
-      float value;
-      unsigned int pin = -1;
-      std::string pinFunc;
-      std::map<std::string,int>::iterator it;
-      
-      // Analog inputs
-      pinFunc = EBS_LINE;
-      pos = payload.find(pinFunc);
-      if(pos != std::string::npos) {   	
-				it = BBB_Analog.find(pinFunc);
-				if (it == BBB_Analog.end()){
-    			//std::cout << "ERROR: cannot find requested pin: " << pinFunc << std::endl;
-    		}
-				else {
-					pin = it->second;
-					unsigned int delimiterPos1 = pos + pinFunc.length();
-      		unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
-      		if(ebsLine){ 
-      		  //std::cout << "ebsLine: " << rawVal << " "; newLine = true;
-      		}
-      		rawEbsLine = sendBackAnalog(od4, pin, rawVal);
+  std::vector<std::string> payloads;
+  while (m_receiveBuffer.length() > 3) {
+    char *colonSign = nullptr;
 
-				}	
-			}
-			
-			pinFunc = SERVICE_TANK;
-      pos = payload.find(pinFunc);
-      if(pos != std::string::npos) {   	
-				it = BBB_Analog.find(pinFunc);
-				if (it == BBB_Analog.end()){
-    			//std::cout << "ERROR: cannot find requested pin: " << pinFunc << std::endl;
-    		}
-				else {
-					pin = it->second;
-					unsigned int delimiterPos1 = pos + pinFunc.length();
-      		unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
-      		if(servTank){ 
-      		 // std::cout << "servTank: " << rawVal << " "; newLine = true;
-      		}
-      		rawServiceTank = sendBackAnalog(od4, pin, rawVal);
+    uint32_t lengthOfPayload = strtol(m_receiveBuffer.c_str(), &colonSign, 10);
+    if (*colonSign == 0x3a) {
+      // Found colon sign.
+      // First, check if the buffer is as long as it is stated in the netstring.
+      // This prevents the case where the colon is near the end of string,
+      // which can lead to out of range access later
+      if (m_receiveBuffer.length() - (colonSign + 1 - m_receiveBuffer.c_str()) 
+          < lengthOfPayload) {
+        // Received data is too short. Skip further processing this part.
+        break;
+      }
 
-				}	
-			}
-			else {
-				//std::cout << "ERROR: cannot find: " << pinFunc << " in payload" << std::endl;
-			}
-			
-			pinFunc = EBS_ACTUATOR;
-      pos = payload.find(pinFunc);
-      if(pos != std::string::npos) {   	
-				it = BBB_Analog.find(pinFunc);
-				if (it == BBB_Analog.end()){
-    			//std::cout << "ERROR: cannot find requested pin: " << pinFunc << std::endl;
-    		}
-				else {
-					pin = it->second;
-					unsigned int delimiterPos1 = pos + pinFunc.length();
-      		unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
-      		if(ebsAct){ 
-      		  //std::cout << "ebsAct: " << rawVal << " "; newLine = true;
-      		}
-      		rawEbsActuator = sendBackAnalog(od4, pin, rawVal);
+      // Now, check if (m_receiveBuffer + 1 + lengthOfPayload) == MSG_END.
+      if ((colonSign[1 + lengthOfPayload]) == MSG_END) {
+        // Successfully found a complete Netstring.
+        int32_t start = colonSign + 1 - m_receiveBuffer.c_str();
+        if (start + lengthOfPayload < m_receiveBuffer.length()) {
+          std::string payload = m_receiveBuffer.substr(start, lengthOfPayload);
+          if(payloads.size() < 100) {
+            payloads.push_back(payload);
+          } else {
+            // Error, dropped payload
+          }
+        }
 
-				}	
-			}
-			else {
-				//std::cout << "ERROR: cannot find: " << pinFunc << " in payload" << std::endl;
-			}
-			
-			pinFunc = PRESSURE_RAG;
-      pos = payload.find(pinFunc);
-      if(pos != std::string::npos) {   	
-				it = BBB_Analog.find(pinFunc);
-				if (it == BBB_Analog.end()){
-    			//std::cout << "ERROR: cannot find requested pin: " << pinFunc << std::endl;
-    		}
-				else {
-					pin = it->second;
-					unsigned int delimiterPos1 = pos + pinFunc.length();
-      		unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
-      		if(pressReg){ 
-      		  //std::cout << "pressReg: " << rawVal << " "; newLine = true;
-      		}
-      		rawPressureReg = sendBackAnalog(od4, pin, rawVal);
-
-				}	
-			}
-			else {
-				//std::cout << "ERROR: cannot find: " << pinFunc << " in payload" << std::endl;
-			}
-			
-			pinFunc = POSITION_RACK;
-      pos = payload.find(pinFunc);
-      if(pos != std::string::npos) {   	
-				it = BBB_Analog.find(pinFunc);
-				if (it == BBB_Analog.end()){
-    			//std::cout << "ERROR: cannot find requested pin: " << pinFunc << std::endl;
-    		}
-				else {
-					pin = it->second;
-					unsigned int delimiterPos1 = pos + pinFunc.length();
-      		unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
-      		if(rackPos){ 
-      		  //std::cout << "rackPos: " << rawVal << " "; newLine = true;
-      		}
-      		rawSteerPositionRack = sendBackAnalog(od4, pin, rawVal);
-
-				}	
-			}
-			else {
-				//std::cout << "ERROR: cannot find: " << pinFunc << " in payload" << std::endl;
-			}
-			
-			pinFunc = STEER_POS;
-      pos = payload.find(pinFunc);
-      if(pos != std::string::npos) {   	
-				it = BBB_Analog.find(pinFunc);
-				if (it == BBB_Analog.end()){
-    			//std::cout << "ERROR: cannot find requested pin: " << pinFunc << std::endl;
-    		}
-				else {
-					pin = it->second;
-					unsigned int delimiterPos1 = pos + pinFunc.length();
-      		unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
-      		if(steerPos){ 
-      		  //std::cout << "steerPos: " << rawVal << " "; newLine = true;
-      		}
-      		rawSteerPosition = sendBackAnalog(od4, pin, rawVal);
-
-				}	
-			}
-			
-			// Digital inputs
-			pinFunc = ASMS;
-      pos = payload.find(pinFunc);
-      if(pos != std::string::npos) {   	
-			  pin = m_gpioPinAsms;
-				unsigned int delimiterPos1 = pos + pinFunc.length();
-      	unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
-      	if(asms){ 
-      		//std::cout << "asms: " << rawVal << " "; newLine = true;
-      	}
-      	sendBackDigital(od4Gpio, pin, rawVal);
-      	rawAsms = rawVal;
-			}
-			
-			pinFunc = CLAMPED_SENSOR;
-      pos = payload.find(pinFunc);
-      if(pos != std::string::npos) {   	
-			  pin = m_gpioPinClampSensor;
-				unsigned int delimiterPos1 = pos + pinFunc.length();
-      	unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
-      	if(clamped){ 
-      		//std::cout << "clamped: " << rawVal << " "; newLine = true;
-      	}
-      	sendBackDigital(od4Gpio, pin, rawVal);
-      	rawClamped = rawVal;
-			}
-			
-			pinFunc = EBS_OK;
-      pos = payload.find(pinFunc);
-      if(pos != std::string::npos) {   	
-			  pin = m_gpioPinEbsOk;
-				unsigned int delimiterPos1 = pos + pinFunc.length();
-      	unsigned int rawVal = strtol(payload.c_str() + delimiterPos1 + 1, &endptr, 10);
-      	if(ebsOK){ 
-      		//std::cout << "ebsOK: " << rawVal << " "; newLine = true;
-      	}
-      	sendBackDigital(od4Gpio, pin, rawVal);
-      	rawEbsOK = rawVal;
-			}
-			
-			if(rackPos) {std::cout << "rackPos" << ": " << std::setprecision(2) << rawSteerPositionRack << " "; newLine=true;}
-  if(steerPos) {std::cout << "steerPos" << ": " << std::setprecision(2) << rawSteerPosition << " "; newLine=true;}
-  if(ebsLine) {std::cout << "ebsLine" << ": " << std::setprecision(2) << rawEbsLine << " "; newLine=true;}
-  if(ebsAct) {std::cout << "ebsAct" << ": " << std::setprecision(2) << rawEbsActuator << " "; newLine=true;}
-  if(servTank) {std::cout << "servTank" << ": " << std::setprecision(2) << rawServiceTank << " "; newLine=true;}
-  if(pressReg) {std::cout << "pressReg" << ": " << std::setprecision(2) << rawPressureReg << " "; newLine=true;}
-  if(asms) {std::cout << "asms" << ": " << rawAsms << " "; newLine=true;}
-  if(clamped) {std::cout << "clamped" << ": " << rawClamped << " "; newLine=true;}
-  if(ebsOK) {std::cout << "ebsOK" << ": " << rawEbsOK << " "; newLine=true;}
-  if(newLine) std::cout << std::endl;
+        // Remove decoded Netstring from m_receiveBuffer
+        char *msgEndPtr =  colonSign + 1 + lengthOfPayload;
+        int32_t numberOfCharToRemove = msgEndPtr + 1 - m_receiveBuffer.c_str(); 
+        m_receiveBuffer = m_receiveBuffer.erase(0, numberOfCharToRemove);
+      } else {
+        // The message is corrupted (missing bytes), remove this message from 
+        // buffer
+        // Shift the bytes in buffer so that buffer starts with payload size
+        // (otherwise strtol won't work) 
+        size_t endPos = m_receiveBuffer.find(";");
+        if (endPos != std::string::npos 
+            && endPos + 1 < m_receiveBuffer.length()) {
+          m_receiveBuffer = m_receiveBuffer.substr(endPos + 1, 
+              m_receiveBuffer.length() - endPos);
+        }
+      }
+    } else {
+      // Shift the bytes in buffer so that buffer starts with payload size
+      // The message is corrupted (missing bytes), remove this message from 
+      // buffer
+      size_t endPos = m_receiveBuffer.find(";");
+      if(endPos != std::string::npos 
+          && endPos + 1 < m_receiveBuffer.length()) {
+        m_receiveBuffer = m_receiveBuffer.substr(endPos + 1,
+            m_receiveBuffer.length() - endPos);
+      }
     }
-    m_Payloads.clear();
-  return true;
-	}
-	return false;
-}
-void STM::extractPayload()
-{ //std::cout << "receiveBuffer.length() = " << receiveBuffer.length() << std::endl;
-	if(receiveBuffer.length() > 3)
-	{
-	  char *colonSign = NULL;
-		unsigned int lengthOfPayload = strtol(receiveBuffer.c_str(), &colonSign, 10);
-		if (*colonSign == 0x3a) {
-      //std::cout << "colonSign == " << colonSign << std::endl;
-			// Found colon sign.
-			// First, check if the buffer is as long as it is stated in the netstring.
-			// This prevents the case where the colon is near the end of string, which can lead to out of range access later
-			if(receiveBuffer.length() - (colonSign + 1 - receiveBuffer.c_str()) < (int)lengthOfPayload)
-			{
-			// Received data is too short. Skip further processing this part.
-				return;
-			}	   
-			// Now, check if (receiveBuffer + 1 + lengthOfPayload) == MSG_END.
-			if ((colonSign[1 + lengthOfPayload]) == MSG_END) {
-			  // Successfully found a complete Netstring.
-				int start = colonSign + 1 - receiveBuffer.c_str();
-				if(start +  lengthOfPayload < receiveBuffer.length()){
-				  std::string payload = receiveBuffer.substr(start,lengthOfPayload);
-				  //std::cout << payload << std::endl;
-				  if(m_Payloads.size() < 100) //Maximum payload storage
-					  m_Payloads.push_back(payload);
-				}
-				// Remove decoded Netstring from receiveBuffer
-				char* MsgEndPtr =  colonSign + 1 + lengthOfPayload;
-				int numberOfCharToRemove = MsgEndPtr + 1 - receiveBuffer.c_str(); 
-				receiveBuffer = receiveBuffer.erase(0, numberOfCharToRemove);
-			
-			} else // The message is corrupted (missing bytes), remove this message from buffer
-			{
-			  //Shift the bytes in buffer so that buffer starts with payload size (otherwise strtol won't work) 
-			  unsigned int endPos = receiveBuffer.find(";");
-			  if(endPos != std::string::npos && endPos+1 < receiveBuffer.length())
-			  {
-			   
-			    receiveBuffer = receiveBuffer.substr(endPos+1, receiveBuffer.length() - endPos);
-			  }
-			}
-		} else // The message is corrupted (missing bytes), remove this message from buffer
-		{   //Shift the bytes in buffer so that buffer starts with payload zie
-			  unsigned int endPos = receiveBuffer.find(";");
-			  if(endPos != std::string::npos && endPos+1 < receiveBuffer.length())
-			  {
+  }
 
-			    receiveBuffer = receiveBuffer.substr(endPos+1, receiveBuffer.length() - endPos);
-			  }
-	  }
-	}
+  if (payloads.empty()) {
+    return false;
+  }
+
+  for(std::string payload : payloads) { 
+    size_t pos = std::string::npos;
+    std::string pinFunc;
+    std::map<std::string,int>::iterator it;
+
+    // Analog inputs
+    pinFunc = EBS_LINE;
+    pos = payload.find(pinFunc);
+    if (pos != std::string::npos) {   	
+      it = m_analogPins.find(pinFunc);
+      if (it != m_analogPins.end()) {
+        uint32_t pin = it->second;
+        uint32_t delimiterPos1 = pos + pinFunc.length();
+        uint32_t rawVal = strtol(payload.c_str() + delimiterPos1 + 1, nullptr,
+            10);
+        sendAnalog(od4, pin, rawVal);
+      }
+    }
+
+    pinFunc = SERVICE_TANK;
+    pos = payload.find(pinFunc);
+    if (pos != std::string::npos) {   	
+      it = m_analogPins.find(pinFunc);
+      if (it != m_analogPins.end()) {
+        uint32_t pin = it->second;
+        uint32_t delimiterPos1 = pos + pinFunc.length();
+        uint32_t rawVal = strtol(payload.c_str() + delimiterPos1 + 1, nullptr,
+            10);
+        sendAnalog(od4, pin, rawVal);
+      }	
+    }
+
+    pinFunc = EBS_ACTUATOR;
+    pos = payload.find(pinFunc);
+    if (pos != std::string::npos) {   	
+      it = m_analogPins.find(pinFunc);
+      if (it != m_analogPins.end()) {
+        uint32_t pin = it->second;
+        uint32_t delimiterPos1 = pos + pinFunc.length();
+        uint32_t rawVal = strtol(payload.c_str() + delimiterPos1 + 1, nullptr,
+            10);
+        sendAnalog(od4, pin, rawVal);
+      }	
+    }
+
+    pinFunc = PRESSURE_RAG;
+    pos = payload.find(pinFunc);
+    if (pos != std::string::npos) {
+      it = m_analogPins.find(pinFunc);
+      if (it != m_analogPins.end()) {
+        uint32_t pin = it->second;
+        uint32_t delimiterPos1 = pos + pinFunc.length();
+        uint32_t rawVal = strtol(payload.c_str() + delimiterPos1 + 1, nullptr,
+            10);
+        sendAnalog(od4, pin, rawVal);
+      }	
+    }
+
+    pinFunc = POSITION_RACK;
+    pos = payload.find(pinFunc);
+    if (pos != std::string::npos) {
+      it = m_analogPins.find(pinFunc);
+      if (it != m_analogPins.end()) {
+        uint32_t pin = it->second;
+        uint32_t delimiterPos1 = pos + pinFunc.length();
+        uint32_t rawVal = strtol(payload.c_str() + delimiterPos1 + 1, nullptr,
+            10);
+        sendAnalog(od4, pin, rawVal);
+      }	
+    }
+
+    pinFunc = STEER_POS;
+    pos = payload.find(pinFunc);
+    if (pos != std::string::npos) {
+      it = m_analogPins.find(pinFunc);
+      if (it != m_analogPins.end()) {
+        uint32_t pin = it->second;
+        uint32_t delimiterPos1 = pos + pinFunc.length();
+        uint32_t rawVal = strtol(payload.c_str() + delimiterPos1 + 1, nullptr,
+            10);
+        sendAnalog(od4, pin, rawVal);
+      }	
+    }
+
+    // Digital inputs
+    uint16_t const gpioPinAsms{115};
+    uint16_t const gpioPinEbsOk{49};
+    uint16_t const gpioPinClampSensor{112};
+
+    pinFunc = ASMS;
+    pos = payload.find(pinFunc);
+    if (pos != std::string::npos) {
+      uint32_t pin = gpioPinAsms;
+      uint32_t delimiterPos1 = pos + pinFunc.length();
+      uint32_t rawVal = strtol(payload.c_str() + delimiterPos1 + 1, nullptr,
+          10);
+      sendDigital(od4, pin, rawVal);
+    }
+
+    pinFunc = CLAMPED_SENSOR;
+    pos = payload.find(pinFunc);
+    if (pos != std::string::npos) {
+      uint32_t pin = gpioPinClampSensor;
+      uint32_t delimiterPos1 = pos + pinFunc.length();
+      uint32_t rawVal = strtol(payload.c_str() + delimiterPos1 + 1, nullptr,
+          10);
+      sendDigital(od4, pin, rawVal);
+    }
+
+    pinFunc = EBS_OK;
+    pos = payload.find(pinFunc);
+    if (pos != std::string::npos) {
+      uint32_t pin = gpioPinEbsOk;
+      uint32_t delimiterPos1 = pos + pinFunc.length();
+      uint32_t rawVal = strtol(payload.c_str() + delimiterPos1 + 1, nullptr,
+          10);
+      sendDigital(od4, pin, rawVal);
+    }
+  }
+  return true;
 }
 
 uint32_t STM::getSenderStampOffsetGpio(){
-	return m_senderStampOffsetGpio;
+  return m_senderStampOffsetGpio;
 }
 
 uint32_t STM::getSenderStampOffsetPwm(){
   return m_senderStampOffsetPwm;
 }
 
-void STM::viewAnalogRaw(bool rackPos, bool steerPos, bool ebsLine, bool ebsAct, bool servTank, bool pressReg){
-  bool newLine = false;
-  if(rackPos) {std::cout << "rackPos" << ": " << rawSteerPositionRack << " "; newLine=true;}
-  if(steerPos) {std::cout << "steerPos" << ": " << rawSteerPosition << " "; newLine=true;}
-  if(ebsLine) {std::cout << "ebsLine" << ": " << rawEbsLine << " "; newLine=true;}
-  if(ebsAct) {std::cout << "ebsAct" << ": " << rawEbsActuator << " "; newLine=true;}
-  if(servTank) {std::cout << "servTank" << ": " << rawServiceTank << " "; newLine=true;}
-  if(pressReg) {std::cout << "pressReg" << ": " << rawPressureReg << " "; newLine=true;}
-  if(newLine) std::cout << std::endl;
-}
-
-void STM::tearDown() 
+float STM::lowpassFilter(float newValue, float oldValue, float alpha)
 {
-}
-//catch(...){ std::cout << "exception caught"<< std::endl;}
-
-float STM::lowPassFilter(float newValue, float oldValue, float alpha)
-{
-	return alpha * newValue + (1.0f - alpha) * oldValue;
+  return alpha * newValue + (1.0f - alpha) * oldValue;
 }
