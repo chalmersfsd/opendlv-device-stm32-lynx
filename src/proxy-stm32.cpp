@@ -488,28 +488,22 @@ int32_t STM::sendWithAck(serial::Serial &serial, std::string payload)
   std::string netstringMsg = encodeNetstring(payload);
   serial.write(netstringMsg);
   if (m_verbose) {
-    std::cout << "To STM: " << payload << std::endl;
+    std::cout << "To STM: " << payload;
   }
-  uint32_t result = 0;
-  uint32_t resendAttempts = 3;
-  while (result == 0) {
-    // Wait for STM to send back an ACK/NACK message
-    if (serial.waitReadable()) {
-      std::string resultMsg = serial.read(static_cast<size_t>(128));
-      if (resultMsg.find(payload + "|ACK") != std::string::npos) {
-        if (m_verbose) {
-          std::cout << " ... got ACK" << std::endl;
-        }
-        result = 1;
-      } else {
-        serial.write(netstringMsg);
-        resendAttempts--;
-      }
+  
+  // Wait for STM to send back an ACK/NACK message
+  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+
+  std::string resultMsg = serial.read(static_cast<size_t>(128));
+  if (resultMsg.find(payload + "|ACK") != std::string::npos) {
+    if (m_verbose) {
+      std::cout << " ... got ACK" << std::endl;
     }
-    if (resendAttempts == 0) {
-      // Error, did not get ack
-      result = -1;
+  } else {
+    if (m_verbose) {
+      std::cout << " ... NO ACK!" << std::endl;
     }
+    return -1;
   }
-  return result;
+  return 0;
 }

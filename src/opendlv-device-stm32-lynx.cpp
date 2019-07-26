@@ -98,10 +98,12 @@ int32_t main(int32_t argc, char **argv) {
         std::lock_guard<std::mutex> lock(stmMutex);
         stm.send(serial);
         stm.sendStatusRequest(serial);
-        if (serial.waitReadable()) {
-          std::string data = serial.read(static_cast<size_t>(2048));
-          stm.addData(data);
-        }
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      {
+        std::string data = serial.read(static_cast<size_t>(2048));
+        std::lock_guard<std::mutex> lock(stmMutex);
+        stm.addData(data);
         stm.decode(od4);
       }
       
