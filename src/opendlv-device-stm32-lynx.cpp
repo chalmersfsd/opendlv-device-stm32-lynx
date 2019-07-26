@@ -113,9 +113,9 @@ int32_t main(int32_t argc, char **argv) {
       if (leftInTimeSliceMs < 0) {
         std::cout << "Warning: violated time slice by " 
           << leftInTimeSliceMs << " ms." << std::endl;
-        serial.setTimeout(0, 0, 0, 0, 0);
       } else {
-        serial.setTimeout(0, static_cast<uint32_t>(leftInTimeSliceMs), 0, 0, 0);
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(leftInTimeSliceMs));
       }
 
       std::string data = serial.read(static_cast<size_t>(2048));
