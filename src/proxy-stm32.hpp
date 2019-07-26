@@ -79,21 +79,21 @@ class STM {
     STM(uint32_t, bool);
     ~STM();
 
+    void addData(std::string const &);
+    void collectRequests(std::string, uint32_t, int32_t);
+    bool decode(cluon::OD4Session &);
     uint32_t getSenderStampOffsetGpio();
     uint32_t getSenderStampOffsetPwm();
-    void collectRequests(std::string, uint32_t, int32_t);
     void send(serial::Serial &);
     void sendStatusRequest(serial::Serial &);
-    void getBytesFromSTM(const std::string);
-    bool decode(cluon::OD4Session &, std::string);
 
   private:
-    int32_t sendWithAck(serial::Serial &, std::string);
-    std::string encodePayload(std::string, Request const &);
     std::string encodeNetstring(const std::string);
+    std::string encodePayload(std::string, Request const &);
+    float lowpassFilter(float, float, float);
     float sendAnalog(cluon::OD4Session &, uint16_t, uint32_t);
     void sendDigital(cluon::OD4Session &, uint16_t, bool);
-    float lowpassFilter(float, float, float);
+    int32_t sendWithAck(serial::Serial &, std::string);
 
     std::map<int32_t, std::string> m_gpioPins;
     std::map<int32_t, std::string> m_pwmPins;

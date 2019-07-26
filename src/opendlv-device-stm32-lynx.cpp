@@ -38,15 +38,14 @@ int32_t main(int32_t argc, char **argv) {
     std::cerr << "Example: " << argv[0] << " ADD EXAMPLE HERE" << std::endl;
     retCode = 1;
   } else {
-    const uint32_t ID{(commandlineArguments["id"].size() != 0) ?
+    uint32_t const ID{(commandlineArguments["id"].size() != 0) ?
       static_cast<uint32_t>(std::stoi(commandlineArguments["id"])) : 0};
-    const bool VERBOSE{commandlineArguments.count("verbose") != 0};
-    const float FREQ{std::stof(commandlineArguments["freq"])};
-    const uint32_t BAUDRATE{38400};
-    const uint32_t TIMEOUT{1}; // 5 ms timeout
+    bool const VERBOSE{commandlineArguments.count("verbose") != 0};
+    float const FREQ{std::stof(commandlineArguments["freq"])};
+    uint32_t const BAUDRATE{38400};
     
-    const std::string deviceName{commandlineArguments["device"]};
-    double const stateRequestPeriod = 1.0 / FREQ;
+    std::string const deviceName{commandlineArguments["device"]};
+    uint32_t const periodTimeMs = static_cast<uint32_t>(1000.0 / FREQ);
 
     cluon::OD4Session od4{
       static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
@@ -54,13 +53,8 @@ int32_t main(int32_t argc, char **argv) {
     STM stm(ID, VERBOSE);  
     std::mutex stmMutex;
 
-    serial::Serial serial(deviceName, BAUDRATE, 
-        serial::Timeout::simpleTimeout(TIMEOUT));
-    serial.flush();
-
     std::cout << "Microservice ID:" << ID << std::endl;
-    std::cout << "FREQ: " << FREQ << std::endl;
-    std::cout << "VERBOSE: " << VERBOSE << std::endl;
+    std::cout << "Frequency: " << FREQ << std::endl;
     std::cout << "Serial port (" << deviceName << ") created." << std::endl;
 
     auto onSwitchStateRequest{[&stm, &stmMutex](
@@ -95,38 +89,41 @@ int32_t main(int32_t argc, char **argv) {
     od4.dataTrigger(opendlv::proxy::PulseWidthModulationRequest::ID(),
         onPulseWidthModulationRequest);
 
-    cluon::data::TimeStamp lastStatusRequest{cluon::time::now()};
-    {
-      std::lock_guard<std::mutex> lock(stmMutex);
-      stm.sendStatusRequest(serial);
-    }
+    serial::Serial serial(deviceName, BAUDRATE);
 
     while (serial.isOpen()) {
-      double timeSinceLastStatusRequest{
-        (cluon::time::toMicroseconds(cluon::time::now()) - 
-        cluon::time::toMicroseconds(lastStatusRequest)) / 1000000.0};
-
-      if (timeSinceLastStatusRequest > stateRequestPeriod) {
+    
+      cluon::data::TimeStamp lastStatusRequest{cluon::time::now()};
+      {
         std::lock_guard<std::mutex> lock(stmMutex);
         stm.sendStatusRequest(serial);
-        lastStatusRequest = cluon::time::now();
-      }
-
-      if (serial.waitReadable()) {
-        std::lock_guard<std::mutex> lock(stmMutex);
-        std::string data = serial.read(static_cast<size_t>(256));
-        stm.decode(od4, data);
-       
+        stm.send(serial);
+        stm.decode(od4);
       }
       
-      if (!serial.available()) {
-        std::lock_guard<std::mutex> lock(stmMutex);
-        stm.send(serial);
+      serial.flush();
+      
+      int64_t const processingTimeMs{
+        (cluon::time::toMicroseconds(cluon::time::now()) - 
+        cluon::time::toMicroseconds(lastStatusRequest)) / 1000};
+      int32_t const leftInTimeSliceMs{
+        static_cast<int32_t>(periodTimeMs) 
+          - static_cast<int32_t>(processingTimeMs)};
+
+      if (leftInTimeSliceMs < 0) {
+        std::cout << "Warning: violated time slice by " 
+          << leftInTimeSliceMs << " ms." << std::endl;
+        serial.setTimeout(0, 0, 0, 0, 0);
+      } else {
+        serial.setTimeout(0, static_cast<uint32_t>(leftInTimeSliceMs), 0, 0, 0);
       }
 
-      serial.flush();
-
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      std::string data = serial.read(static_cast<size_t>(2048));
+      
+      {
+        std::lock_guard<std::mutex> lock(stmMutex);
+        stm.addData(data);
+      }
     }
 
     return retCode;
