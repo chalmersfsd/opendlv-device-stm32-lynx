@@ -96,8 +96,12 @@ int32_t main(int32_t argc, char **argv) {
       cluon::data::TimeStamp lastStatusRequest{cluon::time::now()};
       {
         std::lock_guard<std::mutex> lock(stmMutex);
-        stm.sendStatusRequest(serial);
         stm.send(serial);
+        stm.sendStatusRequest(serial);
+        if (serial.waitReadable()) {
+          std::string data = serial.read(static_cast<size_t>(2048));
+          stm.addData(data);
+        }
         stm.decode(od4);
       }
       
@@ -116,13 +120,6 @@ int32_t main(int32_t argc, char **argv) {
       } else {
         std::this_thread::sleep_for(
             std::chrono::milliseconds(leftInTimeSliceMs));
-      }
-
-      std::string data = serial.read(static_cast<size_t>(2048));
-      
-      {
-        std::lock_guard<std::mutex> lock(stmMutex);
-        stm.addData(data);
       }
     }
 
