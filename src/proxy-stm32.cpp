@@ -82,13 +82,13 @@ void STM::collectRequests(std::string type, uint32_t pin, int32_t value)
   Request request(type, pin, value);
   if (type == "gpio" && m_gpioRequest.size() < maxRequest) {
     m_gpioRequest.push(request);
-    if (m_verbose) {
+    if (m_verbose && m_gpioRequest.size() > 1) {
       std::cout << "Number of GPIO requets in queue: " << m_gpioRequest.size() 
         << std::endl;
     }
   } else if (type == "pwm" && m_pwmRequest.size() < maxRequest) {
     m_pwmRequest.push(request);
-    if (m_verbose) {
+    if (m_verbose && m_pwmRequest.size() > 1) {
       std::cout << "Number of PWM requets in queue: " << m_pwmRequest.size() 
         << std::endl;
     }
