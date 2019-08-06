@@ -344,13 +344,16 @@ float STM::lowpassFilter(float newValue, float oldValue, float alpha)
 
 void STM::send(serial::Serial &serial)
 {
+  std::vector<std::string> waitingForAck;
+  
   while (m_gpioRequest.size() > 0) {
     std::string payload = encodePayload("gpio", m_gpioRequest.front());
     if (!payload.empty()) {
-      int32_t result = sendWithAck(serial, payload);
-      if (result == -1) {
-        std::cout << "[STM32 Proxy]: Error sending " 
-          << encodeNetstring(payload) << " : no ACK from STM32" << std::endl;
+      std::string netstringMsg = encodeNetstring(payload);
+      waitingForAck.push_back(payload);
+      serial.write(netstringMsg);
+      if (m_verbose) {
+        std::cout << "To STM: " << payload;
       }
     }
     m_gpioRequest.pop();
@@ -359,13 +362,30 @@ void STM::send(serial::Serial &serial)
   while (m_pwmRequest.size() > 0) {
     std::string payload = encodePayload("pwm", m_pwmRequest.front());
     if (!payload.empty()) {
-      int32_t result = sendWithAck(serial, payload);
-      if(result == -1) {
-        std::cout << "[STM32 Proxy]: Error sending "
-          << encodeNetstring(payload) << " : no ACK from STM32" << std::endl;
+      std::string netstringMsg = encodeNetstring(payload);
+      waitingForAck.push_back(payload);
+      serial.write(netstringMsg);
+      if (m_verbose) {
+        std::cout << "To STM: " << payload;
       }
     }
     m_pwmRequest.pop();
+  }
+
+  // Wait for STM to send back last ACK/NACK message
+  std::this_thread::sleep_for(std::chrono::milliseconds(4));
+  std::string resultMsg = serial.read(static_cast<size_t>(2048));
+
+  for (auto payload : waitingForAck) {
+    if (resultMsg.find(payload + "|ACK") != std::string::npos) {
+      if (m_verbose) {
+        std::cout << "ACK: " << payload << std::endl;
+      }
+    } else {
+      if (m_verbose) {
+        std::cout << "NO ACK: " << payload << std::endl;
+      }
+    }
   }
 }
 
@@ -481,29 +501,4 @@ void STM::sendStatusRequest(serial::Serial &serial)
   std::string payload = "get";
   std::string netstringMsg = encodeNetstring(payload);
   serial.write(netstringMsg);
-}
-
-int32_t STM::sendWithAck(serial::Serial &serial, std::string payload)
-{
-  std::string netstringMsg = encodeNetstring(payload);
-  serial.write(netstringMsg);
-  if (m_verbose) {
-    std::cout << "To STM: " << payload;
-  }
-  
-  // Wait for STM to send back an ACK/NACK message
-  std::this_thread::sleep_for(std::chrono::milliseconds(5));
-
-  std::string resultMsg = serial.read(static_cast<size_t>(128));
-  if (resultMsg.find(payload + "|ACK") != std::string::npos) {
-    if (m_verbose) {
-      std::cout << " ... got ACK" << std::endl;
-    }
-  } else {
-    if (m_verbose) {
-      std::cout << " ... NO ACK!" << std::endl;
-    }
-    return -1;
-  }
-  return 0;
 }

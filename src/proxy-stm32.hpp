@@ -93,7 +93,6 @@ class STM {
     float lowpassFilter(float, float, float);
     float sendAnalog(cluon::OD4Session &, uint16_t, uint32_t);
     void sendDigital(cluon::OD4Session &, uint16_t, bool);
-    int32_t sendWithAck(serial::Serial &, std::string);
 
     std::map<int32_t, std::string> m_gpioPins;
     std::map<int32_t, std::string> m_pwmPins;
