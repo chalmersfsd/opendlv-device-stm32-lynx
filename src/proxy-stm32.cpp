@@ -46,6 +46,7 @@ STM::STM(uint32_t id, bool verbose)
   m_gpioPins[68] = REDUNDENCY;
   m_gpioPins[67] = SHUTDOWN;
   m_gpioPins[62] = SPARE;
+  m_gpioPins[90] = AUTO_MODE;
 
   m_gpioPins[49] = EBS_OK;
   m_gpioPins[112] = CLAMPED_SENSOR;

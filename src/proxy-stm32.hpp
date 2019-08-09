@@ -49,6 +49,7 @@
 #define RACK_RIGHT "rack_right"
 #define REDUNDENCY "redundency"
 #define SPARE "spare"
+#define AUTO_MODE "auto_mode"
 
 #define STEER_SPEED "steer_speed"
 #define BRAKE_PRESSURE "brake_pressure"
